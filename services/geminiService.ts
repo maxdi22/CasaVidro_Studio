@@ -25,9 +25,9 @@ export const generateImage = async (prompt: string, negativePrompt: string, aspe
     });
 };
 
-export const editImage = async (prompt: string, productImage: ImageFile, sceneImage: ImageFile | null): Promise<GenerateContentResponse> => {
+export const editImage = async (prompt: string, productImages: ImageFile[], sceneImage: ImageFile | null): Promise<GenerateContentResponse> => {
     const parts: any[] = [
-        { inlineData: { data: productImage.base64, mimeType: productImage.mimeType } },
+      ...productImages.map(img => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
     ];
 
     if (sceneImage) {
@@ -91,7 +91,7 @@ export const buildPrompt = async (type: string, subject: string, style: string, 
     return response.text.trim();
 };
 
-export const generateProductPlacementPrompt = async (productImage: ImageFile, sceneImage: ImageFile, productSize: ProductSize): Promise<string> => {
+export const generateProductPlacementPrompt = async (productImages: ImageFile[], sceneImage: ImageFile, productSize: ProductSize): Promise<string> => {
     
     const getSizeInstruction = (): string => {
         switch (productSize) {
@@ -109,41 +109,47 @@ export const generateProductPlacementPrompt = async (productImage: ImageFile, sc
         }
     };
     
-    const systemPrompt = `You are a world-class expert in photorealistic digital art and product placement. Your task is to act as a bridge between a user's images and a powerful image editing AI. You will receive a 'Product Image' and a 'Scene Image'. Your job is to generate a highly detailed, expert-level prompt that instructs the editing AI to seamlessly and realistically integrate the product into the scene.
+    const systemPrompt = `You are a world-class expert in photorealistic digital art and product placement. Your task is to act as a bridge between a user's images and a powerful image editing AI. You will receive one or more 'Product Images' and a 'Scene Image'. Your job is to generate a highly detailed, expert-level prompt that instructs the editing AI to seamlessly and realistically integrate the product into the scene.
 
 **Your process must be as follows:**
 
-**Step 1: Deep Analysis of the Product Image.**
-Before writing the prompt, you must internally analyze and understand the product's core characteristics. Identify:
--   **Primary Material(s):** Is it glass, metal, plastic, ceramic, wood? Be specific (e.g., 'clear ribbed glass', 'brushed aluminum', 'matte white ceramic').
--   **Surface Properties:** Note its texture and finish (e.g., glossy, matte, translucent, reflective, textured, smooth).
--   **Contents:** If the product is a container, what is inside? Describe its properties (e.g., 'viscous, opaque white liquid', 'clear amber fluid', 'empty').
--   **Color and Form:** Note the precise colors and the overall shape and structure of the product.
--   **Inferred Scale:** Based on the object (e.g., lotion dispenser, perfume bottle), what is its likely real-world size?
+**Step 1: Deep Analysis of the Product Image(s).**
+Before writing the prompt, you must internally analyze and understand the product's core characteristics.
+-   **Multiple Product Views Provided:** You may receive multiple 'Product Images' showing the same object from different angles. You MUST synthesize the information from ALL provided angles to build a comprehensive 3D understanding of the object's form, texture, and details.
+-   **Identify Core Characteristics:**
+    -   **Primary Material(s):** Is it glass, metal, plastic, ceramic, wood? Be specific (e.g., 'clear ribbed glass', 'brushed aluminum', 'matte white ceramic').
+    -   **Surface Properties:** Note its texture and finish (e.g., glossy, matte, translucent, reflective, textured, smooth).
+    -   **Contents:** If the product is a container, what is inside? Describe its properties (e.g., 'viscous, opaque white liquid', 'clear amber fluid', 'empty').
+    -   **Color and Form:** Note the precise colors and the overall shape and structure of the product, considering all angles.
+    -   **Inferred Scale:** Based on the object (e.g., lotion dispenser, perfume bottle), what is its likely real-world size?
 
 **Step 2: Generate the Editing Prompt.**
 Using your analysis from Step 1, construct a single, cohesive prompt for the editing AI. This prompt must include the following explicit instructions:
 
 1.  **Complete Object Removal:** Start by clearly instructing the AI to **"Completely and entirely remove the [main subject of the scene] from the scene."** Be specific about what to remove.
 
-2.  **Product Reconstruction and Placement:** Instruct the AI to **recreate and place** the product from the 'Product Image' where the original object was. It's crucial to use the word "recreate" to imply a photorealistic rendering, not a simple copy-paste.
+2.  **Product Reconstruction and Placement:** Instruct the AI to **recreate and place** the product from the 'Product Image(s)' where the original object was. It's crucial to use the word "recreate" to imply a photorealistic rendering based on all provided views, not a simple copy-paste.
 
-3.  **Material-Specific Realism (CRITICAL):** This is the most important part. Based on your analysis, give detailed instructions on how to render the product's materials within the context of the scene.
-    -   **Example for Glass/Liquid:** "Recreate the product as a high-fidelity model of a ribbed glass bottle containing a milky, opaque lotion. Render the scene's light realistically refracting through the ribbed glass, showing subtle highlights on the ridges. The internal liquid should appear translucent, catching ambient light softly. Ensure reflections on the glass surface accurately mirror the surrounding environment."
-    -   **Example for Metal:** "Recreate the product with a brushed steel texture. Capture the anisotropic reflections characteristic of brushed metal, ensuring they align with the scene's primary light source. Cast soft, realistic contact shadows beneath the product."
+3.  **Material-Specific Realism (CRITICAL):** This is the most important part. Based on your multi-angle analysis, give detailed instructions on how to render the product's materials within the context of the scene.
+    -   **Example for Glass/Liquid:** "Recreate the product as a high-fidelity model of a ribbed glass bottle containing a milky, opaque lotion, using all provided angles to perfect its 3D shape. Render the scene's light realistically refracting through the ribbed glass, showing subtle highlights on the ridges. The internal liquid should appear translucent, catching ambient light softly. Ensure reflections on the glass surface accurately mirror the surrounding environment."
+    -   **Example for Metal:** "Recreate the product with a brushed steel texture, referencing all images for its exact form. Capture the anisotropic reflections characteristic of brushed metal, ensuring they align with the scene's primary light source. Cast soft, realistic contact shadows beneath the product."
 
-4.  **Fidelity and Proportions:** Emphasize that the recreated product must be **extremely faithful** to the original's shape, color, branding, and details. Crucially, render the product at a realistic scale and proportion, similar in size to the object it is replacing.
+4.  **Fidelity and Proportions:** Emphasize that the recreated product must be **extremely faithful** to the original's shape, color, branding, and details as seen across all provided images. Crucially, render the product at a realistic scale and proportion, similar in size to the object it is replacing.
 
 5.  **Lighting and Shadow Integration:** Explicitly command the AI to integrate the product by matching the scene's lighting (direction, color, temperature, softness) and casting physically accurate shadows and contact occlusion.
 
 The final output must be ONLY the generated prompt string itself, without any additional explanation, preamble, or markdown formatting.`;
+
+    const imageParts = productImages.map(img => ({
+        inlineData: { mimeType: img.mimeType, data: img.base64 }
+    }));
 
     const response = await ai.models.generateContent({
         model: 'gemini-2.5-flash',
         contents: {
             parts: [
                 { text: systemPrompt },
-                { inlineData: { mimeType: productImage.mimeType, data: productImage.base64 } },
+                ...imageParts,
                 { inlineData: { mimeType: sceneImage.mimeType, data: sceneImage.base64 } }
             ]
         }

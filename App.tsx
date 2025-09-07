@@ -1,3 +1,7 @@
+
+
+
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppState, Output, Creation, Mode, AspectRatio, ImageFile, ProductSize } from './types';
 import { ImageUploader } from './components/ImageUploader';
@@ -5,46 +9,32 @@ import { MediaDisplay } from './components/MediaDisplay';
 import { GalleryModal } from './components/modals/GalleryModal';
 import { PromptEditorModal } from './components/modals/PromptEditorModal';
 import { PromptHelperModal } from './components/modals/PromptHelperModal';
+import { Header } from './components/Header';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
-import { LogoIcon } from './components/icons/LogoIcon';
-import { SunIcon } from './components/icons/SunIcon';
-import { MoonIcon } from './components/icons/MoonIcon';
+import { CheckIcon } from './components/icons/CheckIcon';
+import { ExclamationIcon } from './components/icons/ExclamationIcon';
 import * as gemini from './services/geminiService';
 import * as db from './services/dbService';
 import { VIDEO_LOADING_MESSAGES } from './constants';
+import { MultiImageUploader } from './components/MultiImageUploader';
 
 const initialState: AppState = {
   mode: 'image',
   prompt: '',
   negativePrompt: '',
-  productImage: null,
+  productImages: [],
   sceneImage: null,
   aspectRatio: '1:1',
   productSize: 'Same Size',
 };
 
+type ToastMessage = {
+  id: number;
+  message: string;
+  type: 'success' | 'error';
+};
+
 // --- Helper Components defined outside App ---
-
-const ThemeToggle: React.FC<{ theme: 'light' | 'dark'; onToggle: () => void }> = ({ theme, onToggle }) => (
-  <button onClick={onToggle} className="p-2 rounded-full text-slate-800 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/10 transition-colors" aria-label="Toggle theme">
-    {theme === 'light' ? <MoonIcon className="w-5 h-5" /> : <SunIcon className="w-5 h-5" />}
-  </button>
-);
-
-const Header: React.FC<{ onGalleryOpen: () => void; theme: 'light' | 'dark'; onThemeToggle: () => void; }> = ({ onGalleryOpen, theme, onThemeToggle }) => (
-  <header className="flex justify-between items-center p-4 bg-white/30 dark:bg-black/20 backdrop-blur-lg sticky top-0 z-10 border-b border-white/40 dark:border-black/30">
-    <div className="flex items-center gap-3">
-        <LogoIcon className="w-8 h-8 text-indigo-600" />
-        <h1 className="text-2xl font-bold text-slate-900 dark:text-slate-100 hidden sm:block">Casa Vidro Studio</h1>
-    </div>
-    <div className="flex items-center gap-2">
-        <button onClick={onGalleryOpen} className="px-4 py-2 bg-black/5 dark:bg-white/5 text-slate-800 dark:text-white text-sm font-semibold rounded-md hover:bg-black/10 dark:hover:bg-white/10 transition-colors">
-            Minhas Criações
-        </button>
-        <ThemeToggle theme={theme} onToggle={onThemeToggle} />
-    </div>
-  </header>
-);
 
 const ModeToggle: React.FC<{ mode: Mode; onModeChange: (mode: Mode) => void; disabled: boolean }> = ({ mode, onModeChange, disabled }) => (
     <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg">
@@ -188,7 +178,10 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
   const [isPromptHelperOpen, setIsPromptHelperOpen] = useState(false);
+  const [isAdvancedMode, setIsAdvancedMode] = useState(false);
 
+  const [toasts, setToasts] = useState<ToastMessage[]>([]);
+  
   const [theme, setTheme] = useState<'light' | 'dark'>(() => {
     if (typeof window !== 'undefined' && localStorage.getItem('theme') === 'dark') return 'dark';
     return 'light';
@@ -206,13 +199,21 @@ const App: React.FC = () => {
     }
   }, [theme]);
 
+  const addToast = useCallback((message: string, type: 'success' | 'error' = 'error') => {
+    const id = Date.now();
+    setToasts(prev => [...prev, { id, message, type }]);
+    setTimeout(() => {
+        setToasts(prev => prev.filter(t => t.id !== id));
+    }, 5000);
+  }, []);
+
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
-  const { mode, prompt, negativePrompt, productImage, sceneImage, aspectRatio, productSize } = appState;
+  const { mode, prompt, negativePrompt, productImages, sceneImage, aspectRatio, productSize } = appState;
   
-  const isProductPlacementMode = mode === 'image' && !!productImage;
+  const isProductPlacementMode = mode === 'image' && productImages.length > 0;
 
   const updateState = <K extends keyof AppState,>(key: K, value: AppState[K]) => {
     setAppState(prev => ({...prev, [key]: value}));
@@ -222,6 +223,7 @@ const App: React.FC = () => {
     setAppState(initialState);
     setOutput(null);
     setIsLoading(false);
+    setIsAdvancedMode(false);
     setLoadingMessage('');
     pollingRef.current = false;
   }, []);
@@ -230,10 +232,11 @@ const App: React.FC = () => {
     setAppState(prev => ({
         ...prev,
         mode: 'image',
-        productImage: imageFile,
+        productImages: [imageFile],
         sceneImage: null, // Clear scene when using a new product
         prompt: '',
     }));
+    setIsAdvancedMode(false);
     setOutput(null);
   }, []);
 
@@ -244,29 +247,29 @@ const App: React.FC = () => {
         updateState(field, translated);
     } catch (e) {
         console.error(e);
-        alert('A tradução falhou.');
+        addToast('A tradução falhou.');
     }
   };
   
   const handleAnalyzeAndPrompt = async () => {
-    if (!productImage || !sceneImage) return;
+    if (productImages.length === 0 || !sceneImage) return;
 
     setIsAnalyzing(true);
     updateState('prompt', ''); // Clear existing prompt
     try {
-        const generatedPrompt = await gemini.generateProductPlacementPrompt(productImage, sceneImage, productSize);
+        const generatedPrompt = await gemini.generateProductPlacementPrompt(productImages, sceneImage, productSize);
         updateState('prompt', generatedPrompt);
     } catch (error) {
         console.error("Prompt generation failed:", error);
-        alert(`Falha ao gerar o prompt: ${error instanceof Error ? error.message : String(error)}`);
+        addToast(`Falha ao gerar o prompt: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
         setIsAnalyzing(false);
     }
   };
 
   const handleGenerate = async () => {
-    if (!prompt.trim() && !productImage) {
-        alert("Por favor, forneça um prompt ou uma imagem de produto.");
+    if (!prompt.trim() && productImages.length === 0) {
+        addToast("Por favor, forneça um prompt ou uma imagem de produto.");
         return;
     }
     
@@ -275,9 +278,9 @@ const App: React.FC = () => {
     pollingRef.current = true;
     
     const currentAppState = { ...appState };
+    let resultOutput: Output | null = null;
 
     try {
-      let resultOutput: Output | null = null;
       if (mode === 'image') {
         setLoadingMessage(isProductPlacementMode ? 'Inserindo produto...' : 'Criando imagem...');
         
@@ -285,7 +288,7 @@ const App: React.FC = () => {
         let outputText: string | undefined;
 
         if (isProductPlacementMode) {
-            const response = await gemini.editImage(prompt, productImage!, sceneImage);
+            const response = await gemini.editImage(prompt, productImages, sceneImage);
             const imagePart = response.candidates?.[0].content.parts.find(p => p.inlineData);
             const textPart = response.candidates?.[0].content.parts.find(p => p.text);
             imageBase64 = imagePart?.inlineData?.data;
@@ -303,7 +306,7 @@ const App: React.FC = () => {
 
       } else { // Video mode
         setLoadingMessage(VIDEO_LOADING_MESSAGES[0]);
-        let operation = await gemini.generateVideo(prompt, productImage);
+        let operation = await gemini.generateVideo(prompt, productImages[0] || null);
         
         let msgIndex = 1;
         while (pollingRef.current && !operation.done) {
@@ -319,8 +322,21 @@ const App: React.FC = () => {
                 setLoadingMessage("Buscando dados do vídeo...");
                 const videoResponse = await fetch(`${uri}&key=${process.env.API_KEY}`);
                 const videoBlob = await videoResponse.blob();
-                const videoUrl = URL.createObjectURL(videoBlob);
-                resultOutput = { type: 'video', src: videoUrl };
+                
+                const videoDataUrl = await new Promise<string>((resolve, reject) => {
+                    const reader = new FileReader();
+                    reader.onload = () => {
+                        if (typeof reader.result === 'string') {
+                            resolve(reader.result);
+                        } else {
+                            reject(new Error('Falha ao ler o blob como Data URL.'));
+                        }
+                    };
+                    reader.onerror = (error) => reject(error);
+                    reader.readAsDataURL(videoBlob);
+                });
+
+                resultOutput = { type: 'video', src: videoDataUrl };
             } else {
                 throw new Error("A geração de vídeo terminou, mas nenhuma URI foi retornada.");
             }
@@ -334,12 +350,18 @@ const App: React.FC = () => {
               output: resultOutput,
               createdAt: new Date().toISOString(),
           };
-          await db.addCreation(newCreation);
+          try {
+            await db.addCreation(newCreation);
+            addToast("Criação salva na galeria!", "success");
+          } catch(dbError) {
+            console.error("DB Save failed:", dbError);
+            addToast("Falha ao salvar na galeria. A criação não será permanente.");
+          }
       }
 
     } catch (error) {
         console.error("Generation failed:", error);
-        alert(`Ocorreu um erro: ${error instanceof Error ? error.message : String(error)}`);
+        addToast(`Ocorreu um erro: ${error instanceof Error ? error.message : String(error)}`);
     } finally {
         setIsLoading(false);
         setLoadingMessage('');
@@ -348,23 +370,40 @@ const App: React.FC = () => {
   };
 
   const handleReloadCreation = (creation: Creation) => {
-    // Backward compatibility for old creations
     const reloadedState = {
-      productSize: 'Same Size', // Default for old creations
+      productSize: 'Same Size',
+      productImages: [],
       ...creation,
-      productImage: (creation as any).productImage || (creation as any).baseImage,
-      sceneImage: (creation as any).sceneImage || (creation as any).blendImage,
     };
-    const { output, createdAt, id, ...restOfState } = reloadedState;
-    setAppState(restOfState as AppState);
+    // Backward compatibility for old creations
+    if ((creation as any).productImage) {
+        reloadedState.productImages = [(creation as any).productImage];
+    } else if ((creation as any).baseImage) {
+        reloadedState.productImages = [(creation as any).baseImage];
+    }
+
+    if (!reloadedState.productImages) {
+        reloadedState.productImages = [];
+    }
+
+    const { output, createdAt, id, ...restOfState } = reloadedState as (Creation & {productImages: ImageFile[]});
+    
+    // Ensure sceneImage is correctly handled
+    const finalState = {
+        ...restOfState,
+        sceneImage: (creation as any).sceneImage || (creation as any).blendImage || null
+    };
+
+    setAppState(finalState as AppState);
     setOutput(output);
+    setIsAdvancedMode(finalState.productImages.length > 1);
   };
   
   const actionButtonText = mode === 'video' ? 'Gerar Vídeo' : 'Gerar';
 
-  return (
-    <>
-      <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300">
+  const renderContent = () => {
+    return (
+      <>
         <Header onGalleryOpen={() => setIsGalleryOpen(true)} theme={theme} onThemeToggle={toggleTheme} />
         <main className="flex flex-col md:flex-row gap-8 p-6 lg:p-8">
           <div className="w-full md:w-2/5 lg:w-1/3 xl:w-1/4 flex-shrink-0">
@@ -394,19 +433,74 @@ const App: React.FC = () => {
                     <button onClick={() => handleTranslate(negativePrompt, 'negativePrompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-white/50 dark:bg-black/50 text-slate-700 dark:text-slate-300 rounded-md hover:bg-white dark:hover:bg-black/70">Traduzir PT-EN</button>
                 </div>
               )}
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                <ImageUploader id="productImage" label={mode === 'image' ? 'Imagem do Produto' : 'Imagem Base (opcional)'} imageFile={productImage} onImageChange={(f) => updateState('productImage', f)} disabled={isLoading || isAnalyzing} />
-                {mode === 'image' && (
-                    <ImageUploader id="sceneImage" label="Imagem do Cenário" imageFile={sceneImage} onImageChange={(f) => updateState('sceneImage', f)} disabled={isLoading || isAnalyzing} />
-                )}
-              </div>
               
-              {mode === 'image' && productImage && sceneImage && (
+                {/* Uploader Section Start */}
+                {mode === 'image' ? (
+                  // Image Mode: Handle simple vs. advanced
+                  isAdvancedMode ? (
+                    <>
+                      <MultiImageUploader
+                        label="Imagens do Produto (Múltiplos Ângulos)"
+                        imageFiles={productImages}
+                        onImageChange={(files) => updateState('productImages', files)}
+                        disabled={isLoading || isAnalyzing}
+                      />
+                       <ImageUploader
+                          id="sceneImage"
+                          label="Imagem do Cenário"
+                          imageFile={sceneImage}
+                          onImageChange={(f) => updateState('sceneImage', f)}
+                          disabled={isLoading || isAnalyzing}
+                        />
+                    </>
+                  ) : (
+                    // Simple Image Mode
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                      <ImageUploader
+                        id="productImage"
+                        label="Imagem do Produto"
+                        imageFile={productImages[0] || null}
+                        onImageChange={(f) => updateState('productImages', f ? [f] : [])}
+                        disabled={isLoading || isAnalyzing}
+                      />
+                      <ImageUploader
+                        id="sceneImage"
+                        label="Imagem do Cenário"
+                        imageFile={sceneImage}
+                        onImageChange={(f) => updateState('sceneImage', f)}
+                        disabled={isLoading || isAnalyzing}
+                      />
+                    </div>
+                  )
+                ) : (
+                  // Video Mode
+                  <ImageUploader
+                    id="productImage"
+                    label="Imagem Base (opcional)"
+                    imageFile={productImages[0] || null}
+                    onImageChange={(f) => updateState('productImages', f ? [f] : [])}
+                    disabled={isLoading || isAnalyzing}
+                  />
+                )}
+                
+                {mode === 'image' && (
+                  <div className="text-right">
+                    <button
+                      onClick={() => setIsAdvancedMode(!isAdvancedMode)}
+                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
+                    >
+                      {isAdvancedMode ? 'Modo Simples: Usar uma imagem' : 'Modo Avançado: Usar múltiplos ângulos'}
+                    </button>
+                  </div>
+                )}
+                {/* Uploader Section End */}
+
+
+              {mode === 'image' && productImages.length > 0 && sceneImage && (
                 <ProductSizeSelector value={productSize} onChange={(s) => updateState('productSize', s)} disabled={isLoading || isAnalyzing} />
               )}
 
-              {mode === 'image' && productImage && sceneImage && (
+              {mode === 'image' && productImages.length > 0 && sceneImage && (
                   <button onClick={handleAnalyzeAndPrompt} disabled={isAnalyzing || isLoading} className="w-full px-4 py-2 bg-gradient-to-r from-sky-500 to-cyan-400 text-white font-semibold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
                       {isAnalyzing ? <SpinnerIcon /> : <SparklesIcon className="w-5 h-5" />}
                       {isAnalyzing ? 'Analisando...' : 'Analisar e Criar Prompt'}
@@ -427,9 +521,61 @@ const App: React.FC = () => {
             </div>
           </div>
           <div className="w-full md:w-3/5 lg:w-2/3 xl:w-3/4 h-[80vh]">
-            <MediaDisplay isLoading={isLoading || isAnalyzing} loadingMessage={loadingMessage || (isAnalyzing ? 'Analisando imagens...' : '')} output={output} onUseOutputAsProduct={handleUseOutputAsProduct} />
+            <MediaDisplay 
+              isLoading={isLoading || isAnalyzing} 
+              loadingMessage={loadingMessage || (isAnalyzing ? 'Analisando imagens...' : '')} 
+              output={output} 
+              onUseOutputAsProduct={handleUseOutputAsProduct} 
+              addToast={addToast}
+            />
           </div>
         </main>
+      </>
+    );
+  };
+  
+
+  return (
+    <>
+      <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300">
+        {renderContent()}
+      </div>
+
+      {/* Toast Container */}
+      <div aria-live="assertive" className="fixed inset-0 flex items-end px-4 py-6 pointer-events-none sm:p-6 sm:items-start z-[100]">
+        <div className="w-full flex flex-col items-center space-y-4 sm:items-end">
+          {toasts.map((toast) => (
+            <div key={toast.id} className="max-w-sm w-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden border border-white/50 dark:border-slate-700/50">
+              <div className="p-4">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    {toast.type === 'success' ? (
+                      <CheckIcon className="h-6 w-6 text-green-500" />
+                    ) : (
+                      <ExclamationIcon className="h-6 w-6 text-red-500" />
+                    )}
+                  </div>
+                  <div className="ml-3 w-0 flex-1 pt-0.5">
+                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                      {toast.message}
+                    </p>
+                  </div>
+                  <div className="ml-4 flex-shrink-0 flex">
+                    <button
+                      onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
+                      className="inline-flex text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                    >
+                      <span className="sr-only">Fechar</span>
+                      <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
+                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                      </svg>
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          ))}
+        </div>
       </div>
       
       <GalleryModal isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} onReload={handleReloadCreation} />

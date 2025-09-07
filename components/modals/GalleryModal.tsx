@@ -36,7 +36,11 @@ const GalleryItem: React.FC<{ creation: Creation; onDelete: (id: number) => void
 
     return (
         <div className="relative group aspect-square bg-slate-700 rounded-lg overflow-hidden">
-            <img src={creation.output.src} alt={creation.prompt} className="w-full h-full object-cover" />
+            {creation.output.type === 'image' ? (
+                <img src={creation.output.src} alt={creation.prompt} className="w-full h-full object-cover" />
+            ) : (
+                <video src={creation.output.src} className="w-full h-full object-cover" muted playsInline />
+            )}
             {creation.output.type === 'video' && (
                 <div className="absolute top-2 right-2 bg-black/50 p-1 rounded-full">
                     <PlayIcon className="w-4 h-4 text-white" />

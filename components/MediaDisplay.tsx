@@ -1,13 +1,17 @@
+
+
 import React from 'react';
 import { Output, ImageFile } from '../types';
 import { SpinnerIcon } from './icons/SpinnerIcon';
 import { LogoIcon } from './icons/LogoIcon';
+import { GoogleDriveIcon } from './icons/GoogleDriveIcon';
 
 interface MediaDisplayProps {
   isLoading: boolean;
   loadingMessage: string;
   output: Output | null;
   onUseOutputAsProduct: (imageFile: ImageFile) => void;
+  addToast: (message: string, type: 'success' | 'error') => void;
 }
 
 const DownloadIcon: React.FC = () => (
@@ -38,7 +42,7 @@ const LoadingIndicator: React.FC<{ message: string }> = ({ message }) => (
   </div>
 );
 
-export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMessage, output, onUseOutputAsProduct }) => {
+export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMessage, output, onUseOutputAsProduct, addToast }) => {
   const handleUseOutput = async () => {
     if (output && output.type === 'image') {
       try {
@@ -59,10 +63,16 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMe
         reader.readAsDataURL(file);
       } catch (error) {
         console.error("Failed to process image for 'Use as Product'", error);
-        alert("Não foi possível usar esta imagem como produto. Por favor, baixe e envie novamente.");
+        addToast("Não foi possível usar esta imagem como produto. Por favor, baixe e envie novamente.", 'error');
       }
     }
   };
+
+  const handleSaveToDrive = () => {
+    addToast("Funcionalidade para salvar no Google Drive em breve!", 'error');
+  };
+  
+  const driveButtonTitle = "Salvar no Google Drive (Em Breve)";
 
   return (
     <div className="bg-white/30 dark:bg-black/20 backdrop-blur-lg rounded-2xl w-full h-full flex items-center justify-center p-4 border border-white/40 dark:border-black/30">
@@ -83,6 +93,14 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMe
                     </a>
                     <button onClick={handleUseOutput} className="p-3 bg-white/20 dark:bg-black/20 text-white rounded-full hover:bg-indigo-600 transition-colors" title="Usar como Produto">
                       <UseAsBaseIcon />
+                    </button>
+                    <button 
+                      onClick={handleSaveToDrive} 
+                      className="p-3 bg-white/20 dark:bg-black/20 text-white rounded-full transition-colors opacity-50 cursor-not-allowed" 
+                      title={driveButtonTitle}
+                      disabled={true}
+                    >
+                      <GoogleDriveIcon />
                     </button>
                   </div>
                 </>

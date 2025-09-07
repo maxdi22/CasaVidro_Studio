@@ -1,6 +1,20 @@
+
+
 export type Mode = 'image' | 'video';
 export type AspectRatio = '1:1' | '16:9' | '9:16' | '4:3' | '3:4';
 export type ProductSize = 'Much Smaller' | 'Smaller' | 'Same Size' | 'Larger' | 'Much Larger';
+
+// Fix: Add UserProfile interface to be used by AuthContext.
+export interface UserProfile {
+  sub: string;
+  name: string;
+  given_name: string;
+  family_name: string;
+  picture: string;
+  email: string;
+  email_verified: boolean;
+  locale: string;
+}
 
 export interface ImageFile {
   base64: string; // Raw base64 data
@@ -12,7 +26,7 @@ export interface AppState {
   mode: Mode;
   prompt: string;
   negativePrompt: string;
-  productImage: ImageFile | null;
+  productImages: ImageFile[];
   sceneImage: ImageFile | null;
   aspectRatio: AspectRatio;
   productSize: ProductSize;
