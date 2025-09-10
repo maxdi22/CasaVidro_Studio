@@ -72,7 +72,7 @@ export const MultiImageUploader: React.FC<MultiImageUploaderProps> = ({
 
   return (
     <div>
-      <label className="block text-sm font-medium text-slate-800 dark:text-slate-300 mb-2">{label}</label>
+      <label className="block text-sm font-medium text-[var(--foreground)] mb-2">{label}</label>
       <div className="grid grid-cols-2 gap-2">
         {slots.map((_, index) => {
           const imageFile = imageFiles[index];
@@ -84,15 +84,15 @@ export const MultiImageUploader: React.FC<MultiImageUploaderProps> = ({
             <div key={index} className="relative">
               <label
                 htmlFor={uploaderId}
-                className={`relative block w-full aspect-square border border-dashed rounded-lg p-2 text-center transition-all duration-200 ease-in-out bg-black/5 dark:bg-white/5 border-slate-900/20 dark:border-white/20
-                  ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-black/10 dark:hover:bg-white/10'}`}
+                className={`relative block w-full aspect-square border-2 border-dashed rounded-lg p-2 text-center transition-all duration-200 ease-in-out border-[var(--border)]
+                  ${disabled ? 'cursor-not-allowed opacity-50' : 'cursor-pointer hover:border-[var(--primary)]'}`}
                 onDragOver={(e) => e.preventDefault()}
                 onDrop={(e) => onDrop(e, index)}
               >
                 {imageFile ? (
                   <img src={imageFile.dataUrl} alt={`Preview ${index + 1}`} className="w-full h-full object-cover rounded-md" />
                 ) : (
-                  <div className="flex flex-col items-center justify-center h-full text-slate-600 dark:text-slate-400">
+                  <div className="flex flex-col items-center justify-center h-full text-[var(--foreground)] opacity-70">
                     <ImageIcon className="w-8 h-8 mb-1" />
                     <span className="text-xs">Ângulo {index + 1}</span>
                   </div>

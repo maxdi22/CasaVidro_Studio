@@ -7,24 +7,27 @@
     <title>Casa Vidro Studio</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
-      /* Animated gradient background */
+      :root {
+        --primary: #ff5f14;
+        --secondary: #1f382d;
+        --background: #ece4df;
+        --foreground: #141414;
+        --card: #f7f4f2;
+        --border: #dcd3ce;
+      }
+      html.dark {
+        --primary: #ff5f14;
+        --secondary: #1f382d;
+        --background: #141414;
+        --foreground: #ece4df;
+        --card: #1f382d;
+        --border: #2e4f41;
+      }
       body {
-        background: linear-gradient(-45deg, #fde6f0, #e3eeff, #fbefff, #e4f0ff);
-        background-size: 400% 400%;
-        animation: gradientBG 25s ease infinite;
-      }
-      html.dark body {
-        background: linear-gradient(-45deg, #1e1b4b, #3d144b, #0c2a4c, #4a1f4b);
-        background-size: 400% 400%;
-        animation: gradientBG 25s ease infinite;
-      }
-      @keyframes gradientBG {
-        0% { background-position: 0% 50%; }
-        50% { background-position: 100% 50%; }
-        100% { background-position: 0% 50%; }
+        background-color: var(--background);
       }
 
-      /* For custom scrollbars */
+      /* Custom scrollbars with new palette */
       ::-webkit-scrollbar {
         width: 8px;
         height: 8px;
@@ -33,21 +36,21 @@
         background: transparent;
       }
       ::-webkit-scrollbar-thumb {
-        background: rgba(0, 0, 0, 0.2);
+        background: rgba(20, 20, 20, 0.3); /* from --foreground */
         border-radius: 4px;
         border: 2px solid transparent;
         background-clip: content-box;
       }
        html.dark ::-webkit-scrollbar-thumb {
-        background: rgba(255, 255, 255, 0.3);
+        background: rgba(236, 228, 223, 0.3); /* from --foreground */
       }
       ::-webkit-scrollbar-thumb:hover {
-        background: rgba(0, 0, 0, 0.3);
+        background: rgba(20, 20, 20, 0.4);
         background-clip: content-box;
         border: 2px solid transparent;
       }
        html.dark ::-webkit-scrollbar-thumb:hover {
-        background: rgba(255, 255, 255, 0.4);
+        background: rgba(236, 228, 223, 0.4);
         background-clip: content-box;
         border: 2px solid transparent;
       }

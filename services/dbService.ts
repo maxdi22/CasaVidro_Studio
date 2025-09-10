@@ -1,9 +1,10 @@
 
-import { Creation } from '../types';
+import { Creation, InspoImage } from '../types';
 
 const DB_NAME = 'NanoBananaDB';
-const STORE_NAME = 'creations';
-const DB_VERSION = 1;
+const CREATIONS_STORE_NAME = 'creations';
+const INSPO_STORE_NAME = 'inspoImages';
+const DB_VERSION = 2;
 
 let db: IDBDatabase | null = null;
 
@@ -28,58 +29,78 @@ const initDB = (): Promise<IDBDatabase> => {
 
     request.onupgradeneeded = (event) => {
       const dbInstance = (event.target as IDBOpenDBRequest).result;
-      if (!dbInstance.objectStoreNames.contains(STORE_NAME)) {
-        dbInstance.createObjectStore(STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      if (!dbInstance.objectStoreNames.contains(CREATIONS_STORE_NAME)) {
+        dbInstance.createObjectStore(CREATIONS_STORE_NAME, { keyPath: 'id', autoIncrement: true });
+      }
+      if (!dbInstance.objectStoreNames.contains(INSPO_STORE_NAME)) {
+        dbInstance.createObjectStore(INSPO_STORE_NAME, { keyPath: 'id', autoIncrement: true });
       }
     };
   });
 };
 
-export const addCreation = async (creation: Omit<Creation, 'id' | 'createdAt'> & { createdAt: string }): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.add(creation);
-
-    request.onsuccess = () => resolve();
-    request.onerror = () => {
-      console.error('Error adding creation:', request.error);
-      reject('Error adding creation');
-    };
+// Helper to promisify READ requests
+const promisifyRequest = <T>(request: IDBRequest<T>): Promise<T> => {
+  return new Promise<T>((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
   });
+};
+
+// Helper for robust WRITE transactions
+const performWriteTransaction = <T>(storeName: string, action: (store: IDBObjectStore) => IDBRequest): Promise<T> => {
+    return new Promise(async (resolve, reject) => {
+        try {
+            const dbInstance = await initDB();
+            const transaction = dbInstance.transaction(storeName, 'readwrite');
+            const store = transaction.objectStore(storeName);
+            const request = action(store);
+
+            transaction.oncomplete = () => {
+                resolve(request.result as T);
+            };
+
+            transaction.onerror = () => {
+                console.error("Transaction error:", transaction.error);
+                reject(transaction.error);
+            };
+        } catch (error) {
+            reject(error);
+        }
+    });
+};
+
+export const addCreation = (creation: Omit<Creation, 'id' | 'createdAt'> & { createdAt: string }): Promise<IDBValidKey> => {
+  return performWriteTransaction<IDBValidKey>(CREATIONS_STORE_NAME, (store) => store.add(creation));
 };
 
 export const getAllCreations = async (): Promise<Creation[]> => {
   const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readonly');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.getAll();
-
-    request.onsuccess = () => {
-      // Sort descending by date
-      const sortedCreations = request.result.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
-      resolve(sortedCreations as Creation[]);
-    };
-    request.onerror = () => {
-      console.error('Error fetching creations:', request.error);
-      reject('Error fetching creations');
-    };
-  });
+  const transaction = db.transaction(CREATIONS_STORE_NAME, 'readonly');
+  const store = transaction.objectStore(CREATIONS_STORE_NAME);
+  const creations = await promisifyRequest(store.getAll());
+  // Sort descending by date
+  return creations.sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 };
 
-export const deleteCreation = async (id: number): Promise<void> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const transaction = db.transaction(STORE_NAME, 'readwrite');
-    const store = transaction.objectStore(STORE_NAME);
-    const request = store.delete(id);
+export const deleteCreation = (id: number): Promise<void> => {
+  return performWriteTransaction<void>(CREATIONS_STORE_NAME, (store) => store.delete(id));
+};
 
-    request.onsuccess = () => resolve();
-    request.onerror = () => {
-      console.error('Error deleting creation:', request.error);
-      reject('Error deleting creation');
-    };
-  });
+// --- Inspo Image Functions ---
+
+export const addInspoImage = (image: Omit<InspoImage, 'id'>): Promise<IDBValidKey> => {
+  return performWriteTransaction<IDBValidKey>(INSPO_STORE_NAME, (store) => store.add(image));
+};
+
+export const getAllInspoImages = async (): Promise<InspoImage[]> => {
+  const db = await initDB();
+  const transaction = db.transaction(INSPO_STORE_NAME, 'readonly');
+  const store = transaction.objectStore(INSPO_STORE_NAME);
+  const images = await promisifyRequest(store.getAll());
+  return images.reverse();
+};
+
+export const deleteInspoImage = (id: number): Promise<void> => {
+  return performWriteTransaction<void>(INSPO_STORE_NAME, (store) => store.delete(id));
 };

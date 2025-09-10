@@ -1,7 +1,3 @@
-
-
-
-
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppState, Output, Creation, Mode, AspectRatio, ImageFile, ProductSize } from './types';
 import { ImageUploader } from './components/ImageUploader';
@@ -9,6 +5,8 @@ import { MediaDisplay } from './components/MediaDisplay';
 import { GalleryModal } from './components/modals/GalleryModal';
 import { PromptEditorModal } from './components/modals/PromptEditorModal';
 import { PromptHelperModal } from './components/modals/PromptHelperModal';
+import { MaskEditorModal } from './components/modals/MaskEditorModal';
+import { InspoModal } from './components/modals/InspoModal';
 import { Header } from './components/Header';
 import { SpinnerIcon } from './components/icons/SpinnerIcon';
 import { CheckIcon } from './components/icons/CheckIcon';
@@ -17,6 +15,9 @@ import * as gemini from './services/geminiService';
 import * as db from './services/dbService';
 import { VIDEO_LOADING_MESSAGES } from './constants';
 import { MultiImageUploader } from './components/MultiImageUploader';
+import { fileToImageFile, urlToImageFile } from './utils/fileUtils';
+import { InspoIcon } from './components/icons/InspoIcon';
+import { useAuth } from './context/AuthContext';
 
 const initialState: AppState = {
   mode: 'image',
@@ -26,6 +27,7 @@ const initialState: AppState = {
   sceneImage: null,
   aspectRatio: '1:1',
   productSize: 'Same Size',
+  contextImages: [],
 };
 
 type ToastMessage = {
@@ -37,16 +39,16 @@ type ToastMessage = {
 // --- Helper Components defined outside App ---
 
 const ModeToggle: React.FC<{ mode: Mode; onModeChange: (mode: Mode) => void; disabled: boolean }> = ({ mode, onModeChange, disabled }) => (
-    <div className="flex bg-black/5 dark:bg-white/5 p-1 rounded-lg">
+    <div className="flex bg-zinc-500/10 p-1 rounded-lg">
         <button
             onClick={() => onModeChange('image')}
             disabled={disabled}
-            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'image' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-lg' : 'text-slate-700 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/10'} disabled:opacity-50`}
+            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'image' ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
         >Imagem</button>
         <button
             onClick={() => onModeChange('video')}
             disabled={disabled}
-            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-colors ${mode === 'video' ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-lg' : 'text-slate-700 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/10'} disabled:opacity-50`}
+            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'video' ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
         >Vídeo</button>
     </div>
 );
@@ -108,21 +110,21 @@ const AspectRatioSelector: React.FC<{ value: AspectRatio; onChange: (value: Aspe
     
     return (
         <div>
-            <label className="block text-sm font-medium text-slate-800 dark:text-slate-300 mb-2">Proporção da Tela</label>
-            <div className="grid grid-cols-5 gap-3">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Proporção da Tela</label>
+            <div className="grid grid-cols-5 gap-2">
                 {ratios.map(r => (
                     <button key={r.ratio} onClick={() => onChange(r.ratio)} disabled={disabled}
-                        className={`p-2 rounded-lg transition-all flex flex-col items-center text-center space-y-2 border-2 ${
+                        className={`p-2 rounded-lg transition-all flex flex-col justify-between items-center text-center group border ${
                             value === r.ratio 
-                                ? 'bg-white dark:bg-slate-900 border-indigo-500 shadow-lg'
-                                : 'bg-black/5 dark:bg-white/10 border-transparent hover:bg-black/10 dark:hover:bg-white/20'
+                                ? 'bg-[var(--background)] border-[var(--primary)] border-2'
+                                : 'bg-black/5 dark:bg-black/20 border-transparent hover:border-[var(--border)]'
                         } ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}>
                         
-                        <div className={`w-full max-w-[36px] ${aspectStyles[r.ratio]} bg-slate-400 dark:bg-slate-500 rounded-sm`}></div>
-
-                        <span className="block text-xs font-medium text-slate-700 dark:text-slate-300">{r.ratio}</span>
+                        <div className={`w-full max-w-[40px] flex items-center justify-center border border-[var(--border)] group-hover:border-[var(--primary)]/50 rounded-sm transition-colors ${aspectStyles[r.ratio]} ${value === r.ratio ? '!border-[var(--primary)]' : ''}`}>
+                           <span className={`text-xs font-semibold transition-colors ${value === r.ratio ? 'text-[var(--primary)]' : 'text-[var(--foreground)] opacity-60'}`}>{r.ratio}</span>
+                        </div>
                         
-                        <div className="flex justify-center items-center gap-1.5 min-h-[16px]">
+                        <div className="flex justify-center items-center gap-1.5 min-h-[16px] mt-2">
                             {r.icons.map((Icon, index) => <Icon key={index} className="w-4 h-4" />)}
                         </div>
                     </button>
@@ -143,14 +145,14 @@ const ProductSizeSelector: React.FC<{ value: ProductSize; onChange: (value: Prod
 
     return (
         <div>
-            <label className="block text-sm font-medium text-slate-800 dark:text-slate-300 mb-2">Ajuste de Tamanho do Produto</label>
-            <div className="flex flex-col sm:flex-row bg-black/5 dark:bg-white/5 rounded-lg p-1">
+            <label className="block text-sm font-medium text-[var(--foreground)] mb-2">Ajuste de Tamanho do Produto</label>
+            <div className="flex flex-col sm:flex-row bg-zinc-500/10 rounded-lg p-1">
                 {sizes.map(size => (
                     <button
                         key={size.id}
                         onClick={() => onChange(size.id)}
                         disabled={disabled}
-                        className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-md transition-colors ${value === size.id ? 'bg-white dark:bg-slate-900 text-slate-900 dark:text-white shadow-lg' : 'text-slate-700 dark:text-slate-300 hover:bg-black/10 dark:hover:bg-white/10'} disabled:opacity-50`}
+                        className={`flex-1 px-2 py-1.5 text-xs font-semibold rounded-md transition-all ${value === size.id ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
                     >
                         {size.label}
                     </button>
@@ -166,6 +168,104 @@ const SparklesIcon: React.FC<{className?: string}> = ({className}) => (
     </svg>
 );
 
+
+interface PromptInputProps {
+    prompt: string;
+    onPromptChange: (value: string) => void;
+    contextImages: ImageFile[];
+    onContextImagesChange: (files: ImageFile[]) => void;
+    onTranslate: () => void;
+    onExpand: () => void;
+    onTips: () => void;
+    isEditingFlow: boolean;
+    disabled?: boolean;
+    placeholder?: string;
+}
+
+const PromptInput: React.FC<PromptInputProps> = ({
+    prompt, onPromptChange, contextImages, onContextImagesChange,
+    onTranslate, onExpand, onTips, isEditingFlow, disabled, placeholder
+}) => {
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const handleAddImageClick = () => {
+        fileInputRef.current?.click();
+    };
+
+    const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+        const file = event.target.files?.[0];
+        if (file) {
+            try {
+                const imageFile = await fileToImageFile(file);
+                onContextImagesChange([...contextImages, imageFile]);
+            } catch (error) {
+                console.error("Error processing context image:", error);
+            }
+        }
+        event.target.value = ''; // Reset input
+    };
+
+    const removeContextImage = (index: number) => {
+        onContextImagesChange(contextImages.filter((_, i) => i !== index));
+    };
+
+    return (
+        <div>
+            <div className="flex justify-between items-center mb-2">
+                <label htmlFor="prompt" className="block text-sm font-medium text-[var(--foreground)]">Descreva Sua Visão</label>
+                <div className="flex gap-1">
+                    <button onClick={onExpand} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded hover:bg-black/10 dark:hover:bg-white/10">Expandir</button>
+                    <button onClick={onTips} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded hover:bg-black/10 dark:hover:bg-white/10">Dicas</button>
+                </div>
+            </div>
+            <div className="relative">
+                 <textarea id="prompt" value={prompt} onChange={e => onPromptChange(e.target.value)} rows={4}
+                    className="w-full p-2 bg-black/5 dark:bg-black/20 text-[var(--foreground)] border border-[var(--border)] rounded-md focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] transition placeholder:text-slate-600 dark:placeholder:text-slate-400"
+                    placeholder={placeholder} disabled={disabled} />
+                 <button onClick={onTranslate} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/5 dark:bg-white/5 text-[var(--foreground)] opacity-80 rounded-md hover:bg-black/10 dark:hover:bg-white/10">Traduzir PT-EN</button>
+                {isEditingFlow && (
+                    <>
+                        <button 
+                            onClick={handleAddImageClick}
+                            title="Adicionar imagem de referência"
+                            aria-label="Adicionar imagem de referência"
+                            className="absolute top-2 right-2 p-1.5 bg-black/10 dark:bg-white/10 text-[var(--foreground)] rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition-colors"
+                            disabled={disabled}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
+                        </button>
+                        <input
+                          type="file"
+                          ref={fileInputRef}
+                          className="sr-only"
+                          accept="image/*"
+                          onChange={handleFileChange}
+                          disabled={disabled}
+                        />
+                    </>
+                )}
+            </div>
+            {contextImages.length > 0 && (
+                <div className="mt-2 flex flex-wrap gap-2">
+                    {contextImages.map((image, index) => (
+                        <div key={index} className="relative w-16 h-16">
+                            <img src={image.dataUrl} alt={`Contexto ${index + 1}`} className="w-full h-full object-cover rounded-md" />
+                            <button
+                                onClick={() => removeContextImage(index)}
+                                className="absolute -top-1 -right-1 p-0.5 bg-red-500 text-white rounded-full hover:bg-red-600 transition-colors"
+                                aria-label={`Remover imagem de contexto ${index + 1}`}
+                                disabled={disabled}
+                            >
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}><path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" /></svg>
+                            </button>
+                        </div>
+                    ))}
+                </div>
+            )}
+        </div>
+    );
+};
+
 // --- Main App Component ---
 
 const App: React.FC = () => {
@@ -178,6 +278,8 @@ const App: React.FC = () => {
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isPromptEditorOpen, setIsPromptEditorOpen] = useState(false);
   const [isPromptHelperOpen, setIsPromptHelperOpen] = useState(false);
+  const [isMaskEditorOpen, setIsMaskEditorOpen] = useState(false);
+  const [isInspoModalOpen, setIsInspoModalOpen] = useState(false);
   const [isAdvancedMode, setIsAdvancedMode] = useState(false);
 
   const [toasts, setToasts] = useState<ToastMessage[]>([]);
@@ -188,6 +290,7 @@ const App: React.FC = () => {
   });
   
   const pollingRef = useRef<boolean>(false);
+  const { isReady } = useAuth();
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -211,7 +314,7 @@ const App: React.FC = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
 
-  const { mode, prompt, negativePrompt, productImages, sceneImage, aspectRatio, productSize } = appState;
+  const { mode, prompt, negativePrompt, productImages, sceneImage, aspectRatio, productSize, contextImages } = appState;
   
   const isProductPlacementMode = mode === 'image' && productImages.length > 0;
 
@@ -235,6 +338,7 @@ const App: React.FC = () => {
         productImages: [imageFile],
         sceneImage: null, // Clear scene when using a new product
         prompt: '',
+        contextImages: [], // Clear context images for the new iteration
     }));
     setIsAdvancedMode(false);
     setOutput(null);
@@ -267,6 +371,15 @@ const App: React.FC = () => {
     }
   };
 
+  const handleSelectInspo = async (dataUrl: string) => {
+    setIsInspoModalOpen(false);
+    // Directly use the dataUrl provided by the new InspoModal
+    const mimeType = dataUrl.substring(dataUrl.indexOf(':') + 1, dataUrl.indexOf(';'));
+    const base64 = dataUrl.substring(dataUrl.indexOf(',') + 1);
+    const imageFile: ImageFile = { base64, mimeType, dataUrl };
+    updateState('sceneImage', imageFile);
+  };
+
   const handleGenerate = async () => {
     if (!prompt.trim() && productImages.length === 0) {
         addToast("Por favor, forneça um prompt ou uma imagem de produto.");
@@ -288,7 +401,7 @@ const App: React.FC = () => {
         let outputText: string | undefined;
 
         if (isProductPlacementMode) {
-            const response = await gemini.editImage(prompt, productImages, sceneImage);
+            const response = await gemini.editImage(prompt, productImages, sceneImage, contextImages);
             const imagePart = response.candidates?.[0].content.parts.find(p => p.inlineData);
             const textPart = response.candidates?.[0].content.parts.find(p => p.text);
             imageBase64 = imagePart?.inlineData?.data;
@@ -373,6 +486,7 @@ const App: React.FC = () => {
     const reloadedState = {
       productSize: 'Same Size',
       productImages: [],
+      contextImages: [],
       ...creation,
     };
     // Backward compatibility for old creations
@@ -385,8 +499,12 @@ const App: React.FC = () => {
     if (!reloadedState.productImages) {
         reloadedState.productImages = [];
     }
+    
+    if (!reloadedState.contextImages) {
+        reloadedState.contextImages = [];
+    }
 
-    const { output, createdAt, id, ...restOfState } = reloadedState as (Creation & {productImages: ImageFile[]});
+    const { output, createdAt, id, ...restOfState } = reloadedState as (Creation & {productImages: ImageFile[], contextImages: ImageFile[]});
     
     // Ensure sceneImage is correctly handled
     const finalState = {
@@ -402,117 +520,147 @@ const App: React.FC = () => {
   const actionButtonText = mode === 'video' ? 'Gerar Vídeo' : 'Gerar';
 
   const renderContent = () => {
+    const sceneUploader = (isAdvanced: boolean) => (
+      <div className={!isAdvanced ? "flex flex-col" : ""}>
+        <div className="flex justify-between items-center mb-2 h-7">
+            <label className="block text-sm font-medium text-[var(--foreground)]">
+                {isAdvanced ? "Imagem do Cenário" : "Cenário"}
+            </label>
+            <button
+                onClick={() => setIsInspoModalOpen(true)}
+                disabled={isLoading || isAnalyzing}
+                className="flex items-center gap-1.5 px-3 py-1 text-xs font-semibold bg-zinc-500/10 text-[var(--primary)] rounded-full hover:bg-zinc-500/20 transition-colors"
+            >
+                <InspoIcon className="w-4 h-4" />
+                Inspo
+            </button>
+        </div>
+        <ImageUploader
+            id="sceneImage"
+            label=""
+            imageFile={sceneImage}
+            onImageChange={(f) => {
+                if (f && sceneImage && f.dataUrl !== sceneImage.dataUrl) {
+                    f.maskDisplayUrl = undefined;
+                    f.maskApiBase64 = undefined;
+                }
+                updateState('sceneImage', f)
+            }}
+            disabled={isLoading || isAnalyzing}
+            onEdit={() => setIsMaskEditorOpen(true)}
+            maskDataUrl={sceneImage?.maskDisplayUrl}
+            stretch={!isAdvanced}
+        />
+      </div>
+    );
+
+
     return (
       <>
         <Header onGalleryOpen={() => setIsGalleryOpen(true)} theme={theme} onThemeToggle={toggleTheme} />
         <main className="flex flex-col md:flex-row gap-8 p-6 lg:p-8">
           <div className="w-full md:w-2/5 lg:w-1/3 xl:w-1/4 flex-shrink-0">
-            <div className="bg-white/30 dark:bg-black/20 backdrop-blur-lg border border-white/40 dark:border-black/30 rounded-2xl p-6 space-y-6 sticky top-28">
+            <div className="bg-[var(--card)] border border-[var(--border)] rounded-2xl p-6 space-y-6 sticky top-28">
               <ModeToggle mode={mode} onModeChange={(m) => updateState('mode', m)} disabled={isLoading || isAnalyzing} />
               
-              <div className="relative">
-                <div className="flex justify-between items-center mb-2">
-                    <label htmlFor="prompt" className="block text-sm font-medium text-slate-800 dark:text-slate-300">Descreva Sua Visão</label>
-                    <div className="flex gap-1">
-                        <button onClick={() => setIsPromptEditorOpen(true)} className="px-2 py-0.5 text-xs text-slate-600 dark:text-slate-400 rounded hover:bg-black/10 dark:hover:bg-white/10">Expandir</button>
-                        <button onClick={() => setIsPromptHelperOpen(true)} className="px-2 py-0.5 text-xs text-slate-600 dark:text-slate-400 rounded hover:bg-black/10 dark:hover:bg-white/10">Dicas</button>
-                    </div>
-                </div>
-                <textarea id="prompt" value={prompt} onChange={e => updateState('prompt', e.target.value)} rows={4}
-                    className="w-full p-2 bg-black/5 dark:bg-white/5 text-slate-900 dark:text-slate-100 border border-black/10 dark:border-white/10 rounded-md focus:ring-2 focus:ring-indigo-500 transition placeholder:text-slate-600 dark:placeholder:text-slate-400"
-                    placeholder={isProductPlacementMode ? 'Prompt gerado pela IA aparecerá aqui...' : 'Uma cidade futurista ao pôr do sol...'} disabled={isLoading || isAnalyzing} />
-                 <button onClick={() => handleTranslate(prompt, 'prompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-white/50 dark:bg-black/50 text-slate-700 dark:text-slate-300 rounded-md hover:bg-white dark:hover:bg-black/70">Traduzir PT-EN</button>
-              </div>
-
-              {mode === 'image' && !isProductPlacementMode && (
-                <div className="relative">
-                    <label htmlFor="negativePrompt" className="block text-sm font-medium text-slate-800 dark:text-slate-300 mb-2">Prompt Negativo (opcional)</label>
-                    <textarea id="negativePrompt" value={negativePrompt} onChange={e => updateState('negativePrompt', e.target.value)} rows={2}
-                        className="w-full p-2 bg-black/5 dark:bg-white/5 text-slate-900 dark:text-slate-100 border border-black/10 dark:border-white/10 rounded-md placeholder:text-slate-600 dark:placeholder:text-slate-400"
-                        placeholder="embaçado, texto, marca d'água..." disabled={isLoading || isAnalyzing} />
-                    <button onClick={() => handleTranslate(negativePrompt, 'negativePrompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-white/50 dark:bg-black/50 text-slate-700 dark:text-slate-300 rounded-md hover:bg-white dark:hover:bg-black/70">Traduzir PT-EN</button>
-                </div>
-              )}
-              
-                {/* Uploader Section Start */}
-                {mode === 'image' ? (
-                  // Image Mode: Handle simple vs. advanced
-                  isAdvancedMode ? (
-                    <>
+              {/* Uploader Section Start */}
+              {mode === 'image' ? (
+                isAdvancedMode ? (
+                  <>
+                    <div>
                       <MultiImageUploader
                         label="Imagens do Produto (Múltiplos Ângulos)"
                         imageFiles={productImages}
                         onImageChange={(files) => updateState('productImages', files)}
                         disabled={isLoading || isAnalyzing}
                       />
-                       <ImageUploader
-                          id="sceneImage"
-                          label="Imagem do Cenário"
-                          imageFile={sceneImage}
-                          onImageChange={(f) => updateState('sceneImage', f)}
-                          disabled={isLoading || isAnalyzing}
-                        />
-                    </>
-                  ) : (
-                    // Simple Image Mode
-                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                      <ImageUploader
-                        id="productImage"
-                        label="Imagem do Produto"
-                        imageFile={productImages[0] || null}
-                        onImageChange={(f) => updateState('productImages', f ? [f] : [])}
+                      <button
+                        onClick={() => setIsAdvancedMode(false)}
+                        className="w-full text-center mt-2 p-2 bg-black/5 dark:bg-black/20 rounded-lg text-sm text-[var(--primary)] font-semibold hover:bg-black/10 dark:hover:bg-black/30 transition-colors disabled:opacity-50"
                         disabled={isLoading || isAnalyzing}
-                      />
-                      <ImageUploader
-                        id="sceneImage"
-                        label="Imagem do Cenário"
-                        imageFile={sceneImage}
-                        onImageChange={(f) => updateState('sceneImage', f)}
-                        disabled={isLoading || isAnalyzing}
-                      />
+                      >
+                        Modo Simples: Usar uma imagem
+                      </button>
                     </div>
-                  )
+                    {sceneUploader(true)}
+                  </>
                 ) : (
-                  // Video Mode
-                  <ImageUploader
-                    id="productImage"
-                    label="Imagem Base (opcional)"
-                    imageFile={productImages[0] || null}
-                    onImageChange={(f) => updateState('productImages', f ? [f] : [])}
-                    disabled={isLoading || isAnalyzing}
-                  />
-                )}
-                
-                {mode === 'image' && (
-                  <div className="text-right">
-                    <button
-                      onClick={() => setIsAdvancedMode(!isAdvancedMode)}
-                      className="text-xs text-indigo-600 dark:text-indigo-400 hover:underline"
-                    >
-                      {isAdvancedMode ? 'Modo Simples: Usar uma imagem' : 'Modo Avançado: Usar múltiplos ângulos'}
-                    </button>
+                  // Simple Image Mode
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                    <div>
+                        <div className="flex justify-between items-center mb-2 h-7">
+                            <label className="block text-sm font-medium text-[var(--foreground)]">Produto</label>
+                        </div>
+                        <ImageUploader
+                            id="productImage"
+                            label=""
+                            imageFile={productImages[0] || null}
+                            onImageChange={(f) => updateState('productImages', f ? [f] : [])}
+                            disabled={isLoading || isAnalyzing}
+                        />
+                        <button
+                            onClick={() => setIsAdvancedMode(true)}
+                            className="w-full text-center mt-2 p-2 bg-black/5 dark:bg-black/20 rounded-lg text-sm text-[var(--primary)] font-semibold hover:bg-black/10 dark:hover:bg-black/30 transition-colors disabled:opacity-50"
+                            disabled={isLoading || isAnalyzing}
+                        >
+                            Modo Avançado: Múltiplos ângulos
+                        </button>
+                    </div>
+                    {sceneUploader(false)}
                   </div>
-                )}
-                {/* Uploader Section End */}
-
+                )
+              ) : (
+                // Video Mode
+                <ImageUploader
+                  id="productImage"
+                  label="Imagem Base (opcional)"
+                  imageFile={productImages[0] || null}
+                  onImageChange={(f) => updateState('productImages', f ? [f] : [])}
+                  disabled={isLoading || isAnalyzing}
+                />
+              )}
+              {/* Uploader Section End */}
 
               {mode === 'image' && productImages.length > 0 && sceneImage && (
                 <ProductSizeSelector value={productSize} onChange={(s) => updateState('productSize', s)} disabled={isLoading || isAnalyzing} />
               )}
 
               {mode === 'image' && productImages.length > 0 && sceneImage && (
-                  <button onClick={handleAnalyzeAndPrompt} disabled={isAnalyzing || isLoading} className="w-full px-4 py-2 bg-gradient-to-r from-sky-500 to-cyan-400 text-white font-semibold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
+                  <button onClick={handleAnalyzeAndPrompt} disabled={isAnalyzing || isLoading} className="w-full px-4 py-2 bg-[var(--secondary)] text-white dark:text-[var(--foreground)] font-semibold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity">
                       {isAnalyzing ? <SpinnerIcon /> : <SparklesIcon className="w-5 h-5" />}
                       {isAnalyzing ? 'Analisando...' : 'Analisar e Criar Prompt'}
                   </button>
               )}
               
+              <PromptInput
+                  prompt={prompt}
+                  onPromptChange={p => updateState('prompt', p)}
+                  contextImages={contextImages}
+                  onContextImagesChange={f => updateState('contextImages', f)}
+                  onTranslate={() => handleTranslate(prompt, 'prompt')}
+                  onExpand={() => setIsPromptEditorOpen(true)}
+                  onTips={() => setIsPromptHelperOpen(true)}
+                  isEditingFlow={productImages.length > 0}
+                  disabled={isLoading || isAnalyzing}
+                  placeholder={isProductPlacementMode ? 'Prompt gerado pela IA ou sua edição aparecerá aqui...' : 'Uma cidade futurista ao pôr do sol...'}
+              />
+
+              {mode === 'image' && !isProductPlacementMode && (
+                <div className="relative">
+                    <label htmlFor="negativePrompt" className="block text-sm font-medium text-[var(--foreground)] mb-2">Prompt Negativo (opcional)</label>
+                    <textarea id="negativePrompt" value={negativePrompt} onChange={e => updateState('negativePrompt', e.target.value)} rows={2}
+                        className="w-full p-2 bg-black/5 dark:bg-black/20 text-[var(--foreground)] border border-[var(--border)] rounded-md placeholder:text-slate-600 dark:placeholder:text-slate-400"
+                        placeholder="embaçado, texto, marca d'água..." disabled={isLoading || isAnalyzing} />
+                    <button onClick={() => handleTranslate(negativePrompt, 'negativePrompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/5 dark:bg-white/5 text-[var(--foreground)] opacity-80 rounded-md hover:bg-black/10 dark:hover:bg-white/10">Traduzir PT-EN</button>
+                </div>
+              )}
+
               {mode === 'image' && !isProductPlacementMode && (
                   <AspectRatioSelector value={aspectRatio} onChange={(r) => updateState('aspectRatio', r)} disabled={isLoading || isAnalyzing} />
               )}
 
               <div className="flex gap-4 pt-2">
-                <button onClick={handleGenerate} disabled={isLoading || isAnalyzing} className="w-full px-4 py-3 bg-gradient-to-r from-indigo-600 to-purple-600 text-white font-bold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity shadow-lg shadow-indigo-500/30 dark:shadow-indigo-800/30">
+                <button onClick={handleGenerate} disabled={isLoading || isAnalyzing} className="w-full px-4 py-3 bg-[var(--primary)] text-white font-bold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity shadow-lg shadow-[var(--primary)]/20">
                   {isLoading && <SpinnerIcon />}
                   {isLoading ? 'Gerando...' : actionButtonText}
                 </button>
@@ -534,10 +682,17 @@ const App: React.FC = () => {
     );
   };
   
+  if (!isReady) {
+    return (
+      <div className="w-screen h-screen flex items-center justify-center bg-[var(--background)]">
+        <SpinnerIcon className="w-12 h-12 text-[var(--primary)]" />
+      </div>
+    );
+  }
 
   return (
     <>
-      <div className="min-h-screen text-slate-900 dark:text-slate-100 font-sans transition-colors duration-300">
+      <div className="min-h-screen text-[var(--foreground)] font-sans transition-colors duration-300">
         {renderContent()}
       </div>
 
@@ -545,7 +700,7 @@ const App: React.FC = () => {
       <div aria-live="assertive" className="fixed inset-0 flex items-end px-4 py-6 pointer-events-none sm:p-6 sm:items-start z-[100]">
         <div className="w-full flex flex-col items-center space-y-4 sm:items-end">
           {toasts.map((toast) => (
-            <div key={toast.id} className="max-w-sm w-full bg-white/70 dark:bg-slate-800/70 backdrop-blur-md shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden border border-white/50 dark:border-slate-700/50">
+            <div key={toast.id} className="max-w-sm w-full bg-[var(--card)]/80 backdrop-blur-md shadow-lg rounded-lg pointer-events-auto ring-1 ring-black ring-opacity-5 overflow-hidden border border-[var(--border)]">
               <div className="p-4">
                 <div className="flex items-start">
                   <div className="flex-shrink-0">
@@ -556,14 +711,14 @@ const App: React.FC = () => {
                     )}
                   </div>
                   <div className="ml-3 w-0 flex-1 pt-0.5">
-                    <p className="text-sm font-medium text-slate-900 dark:text-slate-100">
+                    <p className="text-sm font-medium text-[var(--foreground)]">
                       {toast.message}
                     </p>
                   </div>
                   <div className="ml-4 flex-shrink-0 flex">
                     <button
                       onClick={() => setToasts(prev => prev.filter(t => t.id !== toast.id))}
-                      className="inline-flex text-slate-500 dark:text-slate-400 hover:text-slate-800 dark:hover:text-white"
+                      className="inline-flex text-[var(--foreground)] opacity-70 hover:opacity-100"
                     >
                       <span className="sr-only">Fechar</span>
                       <svg className="h-5 w-5" xmlns="http://www.w3.org/2000/svg" viewBox="0 0 20 20" fill="currentColor" aria-hidden="true">
@@ -583,6 +738,22 @@ const App: React.FC = () => {
       <PromptHelperModal isOpen={isPromptHelperOpen} onClose={() => setIsPromptHelperOpen(false)} 
         onAppendToPrompt={(text) => updateState('prompt', prompt ? `${prompt}, ${text}`: text)}
         onAppendToNegativePrompt={(text) => updateState('negativePrompt', negativePrompt ? `${negativePrompt}, ${text}`: text)}
+      />
+      <MaskEditorModal
+        isOpen={isMaskEditorOpen && !!sceneImage}
+        onClose={() => setIsMaskEditorOpen(false)}
+        imageFile={sceneImage}
+        onSave={({ displayUrl, apiBase64 }) => {
+          if (sceneImage) {
+            updateState('sceneImage', { ...sceneImage, maskDisplayUrl: displayUrl, maskApiBase64: apiBase64 });
+          }
+          setIsMaskEditorOpen(false);
+        }}
+      />
+      <InspoModal
+        isOpen={isInspoModalOpen}
+        onClose={() => setIsInspoModalOpen(false)}
+        onSelect={handleSelectInspo}
       />
     </>
   );

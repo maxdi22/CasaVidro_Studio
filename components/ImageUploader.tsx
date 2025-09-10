@@ -1,6 +1,7 @@
 import React, { useState, useCallback, DragEvent } from 'react';
 import { ImageFile } from '../types';
 import { fileToImageFile } from '../utils/fileUtils';
+import { PencilIcon } from './icons/PencilIcon';
 
 interface ImageUploaderProps {
   id: string;
@@ -8,6 +9,9 @@ interface ImageUploaderProps {
   imageFile: ImageFile | null;
   onImageChange: (file: ImageFile | null) => void;
   disabled?: boolean;
+  onEdit?: () => void;
+  maskDataUrl?: string;
+  stretch?: boolean;
 }
 
 const ImageIcon: React.FC<{className?: string}> = ({className}) => (
@@ -16,7 +20,7 @@ const ImageIcon: React.FC<{className?: string}> = ({className}) => (
     </svg>
 );
 
-export const ImageUploader: React.FC<ImageUploaderProps> = ({ id, label, imageFile, onImageChange, disabled = false }) => {
+export const ImageUploader: React.FC<ImageUploaderProps> = ({ id, label, imageFile, onImageChange, disabled = false, onEdit, maskDataUrl, stretch = false }) => {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFileChange = async (file: File | null) => {
@@ -65,16 +69,22 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ id, label, imageFi
     e.stopPropagation();
     onImageChange(null);
   };
+  
+  const handleEdit = (e: React.MouseEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    if(onEdit) onEdit();
+  };
 
-  const uploaderClasses = `relative block w-full aspect-square border border-dashed rounded-lg p-4 text-center cursor-pointer transition-all duration-200 ease-in-out
-    bg-black/5 dark:bg-white/5 border-slate-900/20 dark:border-white/20
-    ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:border-indigo-500 dark:hover:border-indigo-400 hover:bg-black/10 dark:hover:bg-white/10'}
-    ${isDragging ? 'border-indigo-500 dark:border-indigo-400 bg-black/10 dark:bg-white/10' : ''}`;
+  const uploaderClasses = `relative block w-full ${stretch ? 'h-full' : 'aspect-square'} border-2 border-dashed rounded-lg p-4 text-center cursor-pointer transition-all duration-200 ease-in-out
+    border-[var(--border)]
+    ${disabled ? 'cursor-not-allowed opacity-50' : 'hover:border-[var(--primary)]'}
+    ${isDragging ? 'border-[var(--primary)]' : ''}`;
 
   return (
-    <div>
-      <label htmlFor={id} className="block text-sm font-medium text-slate-800 dark:text-slate-300 mb-2">{label}</label>
-      <div className="relative">
+    <div className={stretch ? "h-full flex flex-col" : ""}>
+      {label && <label htmlFor={id} className="block text-sm font-medium text-[var(--foreground)] mb-2">{label}</label>}
+      <div className={`relative ${stretch ? "flex-grow" : ""}`}>
         <label
           htmlFor={id}
           className={uploaderClasses}
@@ -84,9 +94,14 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ id, label, imageFi
           onDrop={onDrop}
         >
           {imageFile ? (
-            <img src={imageFile.dataUrl} alt="Preview" className="w-full h-full object-cover rounded-md" />
+            <>
+              <img src={imageFile.dataUrl} alt="Preview" className="w-full h-full object-cover rounded-md" />
+              {maskDataUrl && (
+                <img src={maskDataUrl} alt="Mask" className="absolute inset-0 w-full h-full object-cover rounded-md opacity-50 pointer-events-none" />
+              )}
+            </>
           ) : (
-            <div className="flex flex-col items-center justify-center h-full text-slate-600 dark:text-slate-400">
+            <div className="flex flex-col items-center justify-center h-full text-[var(--foreground)] opacity-70">
               <ImageIcon className="w-12 h-12 mb-2" />
               <span className="text-sm">Clique ou arraste e solte</span>
             </div>
@@ -94,15 +109,27 @@ export const ImageUploader: React.FC<ImageUploaderProps> = ({ id, label, imageFi
         </label>
         <input id={id} name={id} type="file" className="sr-only" onChange={onFileInputChange} disabled={disabled} accept="image/*" />
         {imageFile && !disabled && (
-          <button
-            onClick={handleClear}
-            className="absolute top-2 right-2 p-1 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-red-500 transition-colors"
-            aria-label="Limpar imagem"
-          >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-            </svg>
-          </button>
+          <>
+            {onEdit && (
+                <button
+                    onClick={handleEdit}
+                    className="absolute top-2 left-2 p-1 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-[var(--primary)] transition-colors"
+                    aria-label="Editar Máscara"
+                    title="Editar Máscara"
+                >
+                    <PencilIcon className="h-4 w-4" />
+                </button>
+            )}
+            <button
+              onClick={handleClear}
+              className="absolute top-2 right-2 p-1 bg-black/30 backdrop-blur-sm text-white rounded-full hover:bg-red-500 transition-colors"
+              aria-label="Limpar imagem"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </>
         )}
       </div>
     </div>

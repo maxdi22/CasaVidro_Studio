@@ -20,6 +20,8 @@ export interface ImageFile {
   base64: string; // Raw base64 data
   mimeType: string;
   dataUrl: string; // data:mime/type;base64,... for display
+  maskDisplayUrl?: string; // for UI overlay
+  maskApiBase64?: string; // for API call (white on black)
 }
 
 export interface AppState {
@@ -30,6 +32,7 @@ export interface AppState {
   sceneImage: ImageFile | null;
   aspectRatio: AspectRatio;
   productSize: ProductSize;
+  contextImages: ImageFile[];
 }
 
 export interface Output {
@@ -83,4 +86,15 @@ export interface PromptHelperContent {
     content: string;
     keywords: string[];
   };
+}
+
+export type InspoCategory = 'Luxuoso' | 'Decor' | 'Fashion' | 'Publicitário';
+
+export const INSPO_CATEGORIES: InspoCategory[] = ['Luxuoso', 'Decor', 'Fashion', 'Publicitário'];
+
+export interface InspoImage {
+  id: number;
+  src: string; // data URL
+  alt: string; // filename
+  category: InspoCategory;
 }

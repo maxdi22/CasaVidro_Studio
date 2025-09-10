@@ -35,7 +35,7 @@ const GalleryItem: React.FC<{ creation: Creation; onDelete: (id: number) => void
     };
 
     return (
-        <div className="relative group aspect-square bg-slate-700 rounded-lg overflow-hidden">
+        <div className="relative group aspect-square bg-black/20 rounded-lg overflow-hidden">
             {creation.output.type === 'image' ? (
                 <img src={creation.output.src} alt={creation.prompt} className="w-full h-full object-cover" />
             ) : (
@@ -49,10 +49,10 @@ const GalleryItem: React.FC<{ creation: Creation; onDelete: (id: number) => void
             <div className="absolute inset-0 bg-black/70 opacity-0 group-hover:opacity-100 transition-opacity duration-300 flex flex-col p-2">
                 <p className="text-xs text-white flex-grow overflow-hidden overflow-ellipsis">{creation.prompt}</p>
                 <div className="flex justify-end gap-2 items-end">
-                    <button onClick={() => onReload(creation)} className="p-2 bg-slate-600 text-white rounded-full hover:bg-indigo-600" title="Recarregar Criação">
+                    <button onClick={() => onReload(creation)} className="p-2 bg-black/50 text-white rounded-full hover:bg-[var(--primary)]" title="Recarregar Criação">
                         <ReloadIcon className="w-4 h-4" />
                     </button>
-                    <button onClick={handleDelete} className="p-2 bg-slate-600 text-white rounded-full hover:bg-red-600" title="Excluir Criação">
+                    <button onClick={handleDelete} className="p-2 bg-black/50 text-white rounded-full hover:bg-red-600" title="Excluir Criação">
                         <TrashIcon className="w-4 h-4" />
                     </button>
                 </div>
@@ -88,7 +88,7 @@ export const GalleryModal: React.FC<GalleryModalProps> = ({ isOpen, onClose, onR
   return (
     <Modal isOpen={isOpen} onClose={onClose} title="Minhas Criações" size="5xl">
       {creations.length === 0 ? (
-        <div className="text-center py-16 text-slate-400">
+        <div className="text-center py-16 text-[var(--foreground)] opacity-70">
           <p>Suas criações aparecerão aqui.</p>
           <p>Vá criar algo incrível!</p>
         </div>

@@ -25,13 +25,18 @@ export const generateImage = async (prompt: string, negativePrompt: string, aspe
     });
 };
 
-export const editImage = async (prompt: string, productImages: ImageFile[], sceneImage: ImageFile | null): Promise<GenerateContentResponse> => {
+export const editImage = async (prompt: string, productImages: ImageFile[], sceneImage: ImageFile | null, contextImages: ImageFile[]): Promise<GenerateContentResponse> => {
     const parts: any[] = [
       ...productImages.map(img => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
+      ...contextImages.map(img => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
     ];
 
     if (sceneImage) {
         parts.push({ inlineData: { data: sceneImage.base64, mimeType: sceneImage.mimeType } });
+        // Add mask if it exists
+        if (sceneImage.maskApiBase64) {
+            parts.push({ inlineData: { data: sceneImage.maskApiBase64, mimeType: 'image/png' } });
+        }
     }
     
     parts.push({ text: prompt });
