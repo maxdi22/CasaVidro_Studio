@@ -27,6 +27,7 @@ export interface ImageFile {
 export interface AppState {
   mode: Mode;
   prompt: string;
+  videoPrompt: string;
   negativePrompt: string;
   productImages: ImageFile[];
   sceneImage: ImageFile | null;

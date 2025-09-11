@@ -25,7 +25,7 @@ export const generateImage = async (prompt: string, negativePrompt: string, aspe
     });
 };
 
-export const editImage = async (prompt: string, productImages: ImageFile[], sceneImage: ImageFile | null, contextImages: ImageFile[]): Promise<GenerateContentResponse> => {
+export const editImage = async (prompt: string, productImages: ImageFile[], sceneImage: ImageFile | null, contextImages: ImageFile[], aspectRatio?: AspectRatio, negativePrompt?: string): Promise<GenerateContentResponse> => {
     const parts: any[] = [
       ...productImages.map(img => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
       ...contextImages.map(img => ({ inlineData: { data: img.base64, mimeType: img.mimeType } })),
@@ -39,7 +39,19 @@ export const editImage = async (prompt: string, productImages: ImageFile[], scen
         }
     }
     
-    parts.push({ text: prompt });
+    let fullPrompt = prompt;
+    // If there is no scene image, it's a generation task using an image as reference.
+    // We can guide the model by adding instructions to the text prompt.
+    if (!sceneImage) {
+        if (aspectRatio) {
+            fullPrompt += `. The final generated image MUST have a strict aspect ratio of ${aspectRatio}.`;
+        }
+        if (negativePrompt && negativePrompt.trim()) {
+            fullPrompt += ` Negative prompt: do not include ${negativePrompt}.`;
+        }
+    }
+    
+    parts.push({ text: fullPrompt });
 
     return ai.models.generateContent({
         model: 'gemini-2.5-flash-image-preview',
@@ -95,6 +107,23 @@ export const buildPrompt = async (type: string, subject: string, style: string, 
     });
     return response.text.trim();
 };
+
+export const generateVideoPromptFromImage = async (baseImage: ImageFile): Promise<string> => {
+    const systemPrompt = `You are an expert creative director for viral social media video ads. Analyze the provided image. Generate a concise, dynamic video prompt to animate this image. The prompt should describe a short, looping animation (5-10 seconds) suitable for Instagram Reels or TikTok. Focus on subtle, high-quality motion like gentle camera pans, parallax effects, sparkling details, or flowing elements to bring the static image to life in a captivating way. The goal is an eye-catching, scroll-stopping video. The final output must be ONLY the generated prompt string itself, without any additional explanation, preamble, or markdown formatting.`;
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: {
+            parts: [
+                { text: systemPrompt },
+                { inlineData: { mimeType: baseImage.mimeType, data: baseImage.base64 } }
+            ]
+        }
+    });
+
+    return response.text.trim();
+};
+
 
 export const generateProductPlacementPrompt = async (productImages: ImageFile[], sceneImage: ImageFile, productSize: ProductSize): Promise<string> => {
     
@@ -167,4 +196,53 @@ The final output must be ONLY the generated prompt string itself, without any ad
     const finalPrompt = [basePrompt, sizeInstruction].filter(Boolean).join(' ');
 
     return finalPrompt;
+};
+
+export const generateVariationPrompt = async (productImages: ImageFile[], sceneImage: ImageFile | null): Promise<string> => {
+    const systemPrompt = `You are a world-class expert in photorealistic digital art and product placement, acting as a creative director. Your task is to generate a new, expert-level prompt for an image editing AI to create a variation of a product shot.
+
+You will receive 'Product Image(s)' and an optional 'Scene Image'.
+
+**Your Process:**
+
+**1. Deep Analysis:**
+   - Analyze the Product Image(s) from all angles to understand its 3D form, materials (e.g., 'clear ribbed glass', 'brushed aluminum'), texture, and contents.
+   - Analyze the Scene Image (if provided) for its style, composition, subject, and lighting environment (direction, color, softness).
+
+**2. Conceive a Creative Variation:**
+   - Your goal is to create a new composition. Do NOT simply describe the existing scene.
+   - Brainstorm a subtle but interesting change. Focus on **EITHER a new camera angle OR a new product position/rotation.**
+     - **Angle Ideas:** Low-angle shot, high-angle top-down, extreme close-up, wide-angle showing more environment, dutch angle.
+     - **Position Ideas:** Move the product to a different spot in the scene, rotate it, place it next to another object, lay it on its side.
+
+**3. Construct the Editing Prompt:**
+   - Write a single, cohesive prompt for the editing AI.
+   - **If a Scene Image is provided:**
+     - Start by instructing the AI to **"Completely and entirely remove the [main subject of the scene] from the scene."**
+     - Then, instruct it to **"recreate and place"** the product in its **new position/angle** you conceived.
+   - **If no Scene Image is provided:**
+     - Describe a complete scene from scratch that incorporates the product in the new creative position/angle you conceived.
+   - **CRITICAL Details for Realism:**
+     - Describe how to render the product's materials realistically based on your analysis (e.g., "Render the scene's light realistically refracting through the ribbed glass...").
+     - Command the AI to integrate the product by matching the scene's lighting and casting physically accurate shadows.
+     - Emphasize that the recreated product must be **extremely faithful** to the original's shape, color, and details from all provided images.
+
+**Output Format:**
+The final output must be ONLY the generated prompt string itself, without any additional explanation, preamble, or markdown formatting.`;
+
+    const parts: any[] = [
+        { text: systemPrompt },
+        ...productImages.map(img => ({ inlineData: { mimeType: img.mimeType, data: img.base64 } })),
+    ];
+
+    if (sceneImage) {
+        parts.push({ inlineData: { mimeType: sceneImage.mimeType, data: sceneImage.base64 } });
+    }
+
+    const response = await ai.models.generateContent({
+        model: 'gemini-2.5-flash',
+        contents: { parts }
+    });
+
+    return response.text.trim();
 };

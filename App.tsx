@@ -18,10 +18,12 @@ import { MultiImageUploader } from './components/MultiImageUploader';
 import { fileToImageFile, urlToImageFile } from './utils/fileUtils';
 import { InspoIcon } from './components/icons/InspoIcon';
 import { useAuth } from './context/AuthContext';
+import { VariationsIcon } from './components/icons/VariationsIcon';
 
 const initialState: AppState = {
   mode: 'image',
   prompt: '',
+  videoPrompt: '',
   negativePrompt: '',
   productImages: [],
   sceneImage: null,
@@ -43,12 +45,12 @@ const ModeToggle: React.FC<{ mode: Mode; onModeChange: (mode: Mode) => void; dis
         <button
             onClick={() => onModeChange('image')}
             disabled={disabled}
-            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'image' ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
+            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'image' ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
         >Imagem</button>
         <button
             onClick={() => onModeChange('video')}
             disabled={disabled}
-            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'video' ? 'bg-[var(--background)] text-[var(--foreground)] shadow-sm' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
+            className={`flex-1 px-3 py-2 text-sm font-semibold rounded-md transition-all ${mode === 'video' ? 'bg-[var(--primary)] text-white shadow-lg shadow-[var(--primary)]/20' : 'text-[var(--foreground)] opacity-70 hover:opacity-100'} disabled:opacity-50`}
         >Vídeo</button>
     </div>
 );
@@ -177,6 +179,8 @@ interface PromptInputProps {
     onTranslate: () => void;
     onExpand: () => void;
     onTips: () => void;
+    onMakeVariations: () => void;
+    showVariationsButton: boolean;
     isEditingFlow: boolean;
     disabled?: boolean;
     placeholder?: string;
@@ -184,7 +188,8 @@ interface PromptInputProps {
 
 const PromptInput: React.FC<PromptInputProps> = ({
     prompt, onPromptChange, contextImages, onContextImagesChange,
-    onTranslate, onExpand, onTips, isEditingFlow, disabled, placeholder
+    onTranslate, onExpand, onTips, onMakeVariations, showVariationsButton, 
+    isEditingFlow, disabled, placeholder
 }) => {
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -213,23 +218,29 @@ const PromptInput: React.FC<PromptInputProps> = ({
         <div>
             <div className="flex justify-between items-center mb-2">
                 <label htmlFor="prompt" className="block text-sm font-medium text-[var(--foreground)]">Descreva Sua Visão</label>
-                <div className="flex gap-1">
-                    <button onClick={onExpand} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded hover:bg-black/10 dark:hover:bg-white/10">Expandir</button>
-                    <button onClick={onTips} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded hover:bg-black/10 dark:hover:bg-white/10">Dicas</button>
+                <div className="flex items-center divide-x divide-[var(--border)]">
+                    {showVariationsButton && (
+                         <button onClick={onMakeVariations} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded-l hover:bg-black/10 dark:hover:bg-white/10 flex items-center gap-1">
+                            <VariationsIcon className="w-4 h-4" />
+                            Criar Variações
+                         </button>
+                    )}
+                    <button onClick={onExpand} className={`px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 ${showVariationsButton ? '' : 'rounded-l'} hover:bg-black/10 dark:hover:bg-white/10`}>Expandir</button>
+                    <button onClick={onTips} className="px-2 py-0.5 text-xs text-[var(--foreground)] opacity-70 rounded-r hover:bg-black/10 dark:hover:bg-white/10">Dicas</button>
                 </div>
             </div>
             <div className="relative">
                  <textarea id="prompt" value={prompt} onChange={e => onPromptChange(e.target.value)} rows={4}
                     className="w-full p-2 bg-black/5 dark:bg-black/20 text-[var(--foreground)] border border-[var(--border)] rounded-md focus:ring-2 focus:ring-[var(--primary)] focus:border-[var(--primary)] transition placeholder:text-slate-600 dark:placeholder:text-slate-400"
                     placeholder={placeholder} disabled={disabled} />
-                 <button onClick={onTranslate} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/5 dark:bg-white/5 text-[var(--foreground)] opacity-80 rounded-md hover:bg-black/10 dark:hover:bg-white/10">Traduzir PT-EN</button>
+                 <button onClick={onTranslate} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-[var(--background)]/80 dark:bg-[var(--card)]/80 backdrop-blur-sm text-[var(--foreground)] opacity-90 rounded-md hover:opacity-100 transition-all">Traduzir PT-EN</button>
                 {isEditingFlow && (
                     <>
                         <button 
                             onClick={handleAddImageClick}
                             title="Adicionar imagem de referência"
                             aria-label="Adicionar imagem de referência"
-                            className="absolute top-2 right-2 p-1.5 bg-black/10 dark:bg-white/10 text-[var(--foreground)] rounded-full hover:bg-black/20 dark:hover:bg-white/20 transition-colors"
+                            className="absolute top-2 right-2 p-1.5 bg-[var(--background)]/80 dark:bg-[var(--card)]/80 backdrop-blur-sm text-[var(--foreground)] rounded-full hover:opacity-100 transition-all"
                             disabled={disabled}
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 4v16m8-8H4" /></svg>
@@ -288,6 +299,8 @@ const App: React.FC = () => {
     if (typeof window !== 'undefined' && localStorage.getItem('theme') === 'dark') return 'dark';
     return 'light';
   });
+
+  const [videoPromptGeneratedFor, setVideoPromptGeneratedFor] = useState<string | null>(null);
   
   const pollingRef = useRef<boolean>(false);
   const { isReady } = useAuth();
@@ -301,6 +314,40 @@ const App: React.FC = () => {
       localStorage.setItem('theme', 'light');
     }
   }, [theme]);
+  
+  const { mode, prompt, videoPrompt, negativePrompt, productImages, sceneImage, aspectRatio, productSize, contextImages } = appState;
+
+  // Auto-generate video prompt effect
+  useEffect(() => {
+    const image = productImages[0];
+    const handleAutoVideoPrompt = async (img: ImageFile) => {
+      if (!img) return;
+      setIsAnalyzing(true);
+      setLoadingMessage('Diretor Criativo de IA está analisando sua imagem...');
+      try {
+        const generatedPrompt = await gemini.generateVideoPromptFromImage(img);
+        updateState('videoPrompt', generatedPrompt);
+        setVideoPromptGeneratedFor(img.dataUrl);
+        addToast("Prompt de vídeo gerado com IA!", "success");
+      } catch (error) {
+        console.error("Video prompt generation failed:", error);
+        addToast(`Falha ao gerar o prompt de vídeo: ${error instanceof Error ? error.message : String(error)}`);
+      } finally {
+        setIsAnalyzing(false);
+        setLoadingMessage('');
+      }
+    };
+    
+    if (
+      mode === 'video' &&
+      image &&
+      !videoPrompt && // Only generate if prompt is empty
+      videoPromptGeneratedFor !== image.dataUrl // And not already generated for this specific image
+    ) {
+      handleAutoVideoPrompt(image);
+    }
+  }, [mode, productImages, videoPrompt, videoPromptGeneratedFor]);
+
 
   const addToast = useCallback((message: string, type: 'success' | 'error' = 'error') => {
     const id = Date.now();
@@ -313,8 +360,6 @@ const App: React.FC = () => {
   const toggleTheme = () => {
     setTheme(prevTheme => prevTheme === 'light' ? 'dark' : 'light');
   };
-
-  const { mode, prompt, negativePrompt, productImages, sceneImage, aspectRatio, productSize, contextImages } = appState;
   
   const isProductPlacementMode = mode === 'image' && productImages.length > 0;
 
@@ -328,6 +373,7 @@ const App: React.FC = () => {
     setIsLoading(false);
     setIsAdvancedMode(false);
     setLoadingMessage('');
+    setVideoPromptGeneratedFor(null);
     pollingRef.current = false;
   }, []);
 
@@ -338,13 +384,15 @@ const App: React.FC = () => {
         productImages: [imageFile],
         sceneImage: null, // Clear scene when using a new product
         prompt: '',
+        videoPrompt: '',
         contextImages: [], // Clear context images for the new iteration
     }));
+    setVideoPromptGeneratedFor(null);
     setIsAdvancedMode(false);
     setOutput(null);
   }, []);
 
-  const handleTranslate = async (text: string, field: 'prompt' | 'negativePrompt') => {
+  const handleTranslate = async (text: string, field: 'prompt' | 'videoPrompt' | 'negativePrompt') => {
     if (!text.trim()) return;
     try {
         const translated = await gemini.translateText(text);
@@ -380,8 +428,10 @@ const App: React.FC = () => {
     updateState('sceneImage', imageFile);
   };
 
-  const handleGenerate = async () => {
-    if (!prompt.trim() && productImages.length === 0) {
+  const handleGenerate = async (promptOverride?: string) => {
+    const currentPrompt = promptOverride ?? (mode === 'image' ? prompt : videoPrompt);
+
+    if (!currentPrompt.trim() && productImages.length === 0) {
         addToast("Por favor, forneça um prompt ou uma imagem de produto.");
         return;
     }
@@ -390,7 +440,7 @@ const App: React.FC = () => {
     setOutput(null);
     pollingRef.current = true;
     
-    const currentAppState = { ...appState };
+    const currentAppState = { ...appState, prompt: mode === 'image' ? currentPrompt : prompt };
     let resultOutput: Output | null = null;
 
     try {
@@ -401,13 +451,13 @@ const App: React.FC = () => {
         let outputText: string | undefined;
 
         if (isProductPlacementMode) {
-            const response = await gemini.editImage(prompt, productImages, sceneImage, contextImages);
+            const response = await gemini.editImage(currentPrompt, productImages, sceneImage, contextImages, aspectRatio, negativePrompt);
             const imagePart = response.candidates?.[0].content.parts.find(p => p.inlineData);
             const textPart = response.candidates?.[0].content.parts.find(p => p.text);
             imageBase64 = imagePart?.inlineData?.data;
             outputText = textPart?.text;
         } else {
-            const response = await gemini.generateImage(prompt, negativePrompt, aspectRatio);
+            const response = await gemini.generateImage(currentPrompt, negativePrompt, aspectRatio);
             imageBase64 = response.generatedImages?.[0]?.image?.imageBytes;
         }
 
@@ -419,7 +469,7 @@ const App: React.FC = () => {
 
       } else { // Video mode
         setLoadingMessage(VIDEO_LOADING_MESSAGES[0]);
-        let operation = await gemini.generateVideo(prompt, productImages[0] || null);
+        let operation = await gemini.generateVideo(currentPrompt, productImages[0] || null);
         
         let msgIndex = 1;
         while (pollingRef.current && !operation.done) {
@@ -481,43 +531,78 @@ const App: React.FC = () => {
         pollingRef.current = false;
     }
   };
+  
+  const handleMakeVariations = async () => {
+    if (isLoading || isAnalyzing || productImages.length === 0) {
+      if (productImages.length === 0) {
+        addToast("É necessária uma imagem de produto para criar variações.");
+      }
+      return;
+    }
+  
+    setIsLoading(true);
+    setLoadingMessage("IA está pensando em uma nova variação...");
+    setOutput(null);
+  
+    try {
+      const newPrompt = await gemini.generateVariationPrompt(productImages, sceneImage);
+      updateState('prompt', newPrompt);
+      // handleGenerate will take over the loading state and messages
+      await handleGenerate(newPrompt);
+    } catch (error) {
+      console.error("Variation creation failed:", error);
+      addToast(`Falha ao criar variação: ${error instanceof Error ? error.message : String(error)}`);
+      // Ensure loading state is reset on prompt generation failure
+      setIsLoading(false);
+      setLoadingMessage('');
+    }
+  };
+
 
   const handleReloadCreation = (creation: Creation) => {
-    const reloadedState = {
-      productSize: 'Same Size',
-      productImages: [],
-      contextImages: [],
-      ...creation,
-    };
-    // Backward compatibility for old creations
-    if ((creation as any).productImage) {
-        reloadedState.productImages = [(creation as any).productImage];
-    } else if ((creation as any).baseImage) {
-        reloadedState.productImages = [(creation as any).baseImage];
-    }
-
-    if (!reloadedState.productImages) {
-        reloadedState.productImages = [];
+    const { output, createdAt, id, ...restOfState } = creation;
+    
+    // Handle backward compatibility for old creations
+    const reloadedPrompt = creation.prompt || '';
+    const reloadedVideoPrompt = creation.videoPrompt || (creation.mode === 'video' ? reloadedPrompt : '');
+    const reloadedImagePrompt = creation.mode === 'image' ? reloadedPrompt : '';
+    
+    if (!restOfState.productImages) {
+        if ((creation as any).productImage) {
+            restOfState.productImages = [(creation as any).productImage];
+        } else if ((creation as any).baseImage) {
+            restOfState.productImages = [(creation as any).baseImage];
+        } else {
+            restOfState.productImages = [];
+        }
     }
     
-    if (!reloadedState.contextImages) {
-        reloadedState.contextImages = [];
-    }
+    if (!restOfState.contextImages) restOfState.contextImages = [];
+    if (!restOfState.productSize) restOfState.productSize = 'Same Size';
 
-    const { output, createdAt, id, ...restOfState } = reloadedState as (Creation & {productImages: ImageFile[], contextImages: ImageFile[]});
-    
-    // Ensure sceneImage is correctly handled
     const finalState = {
+        ...initialState,
         ...restOfState,
-        sceneImage: (creation as any).sceneImage || (creation as any).blendImage || null
+        prompt: reloadedImagePrompt,
+        videoPrompt: reloadedVideoPrompt,
+        sceneImage: (creation as any).sceneImage || (creation as any).blendImage || null,
     };
-
+    
     setAppState(finalState as AppState);
     setOutput(output);
     setIsAdvancedMode(finalState.productImages.length > 1);
+    setVideoPromptGeneratedFor(null);
   };
   
   const actionButtonText = mode === 'video' ? 'Gerar Vídeo' : 'Gerar';
+  
+  const appendToCurrentPrompt = (text: string) => {
+    if (mode === 'image') {
+        updateState('prompt', prompt ? `${prompt}, ${text}`: text);
+    } else {
+        updateState('videoPrompt', videoPrompt ? `${videoPrompt}, ${text}`: text);
+    }
+  };
 
   const renderContent = () => {
     const sceneUploader = (isAdvanced: boolean) => (
@@ -633,34 +718,42 @@ const App: React.FC = () => {
               )}
               
               <PromptInput
-                  prompt={prompt}
-                  onPromptChange={p => updateState('prompt', p)}
+                  prompt={mode === 'image' ? prompt : videoPrompt}
+                  onPromptChange={mode === 'image' ? (p => updateState('prompt', p)) : (p => updateState('videoPrompt', p))}
                   contextImages={contextImages}
                   onContextImagesChange={f => updateState('contextImages', f)}
-                  onTranslate={() => handleTranslate(prompt, 'prompt')}
+                  onTranslate={() => handleTranslate(mode === 'image' ? prompt : videoPrompt, mode === 'image' ? 'prompt' : 'videoPrompt')}
                   onExpand={() => setIsPromptEditorOpen(true)}
                   onTips={() => setIsPromptHelperOpen(true)}
-                  isEditingFlow={productImages.length > 0}
+                  onMakeVariations={handleMakeVariations}
+                  showVariationsButton={mode === 'image' && productImages.length > 0}
+                  isEditingFlow={mode === 'image' && productImages.length > 0}
                   disabled={isLoading || isAnalyzing}
-                  placeholder={isProductPlacementMode ? 'Prompt gerado pela IA ou sua edição aparecerá aqui...' : 'Uma cidade futurista ao pôr do sol...'}
+                  placeholder={
+                    isAnalyzing && mode === 'video' 
+                    ? 'Diretor Criativo de IA está gerando um prompt...' 
+                    : isProductPlacementMode 
+                    ? 'Prompt gerado pela IA ou sua edição aparecerá aqui...' 
+                    : 'Uma cidade futurista ao pôr do sol...'
+                  }
               />
 
-              {mode === 'image' && !isProductPlacementMode && (
+              {mode === 'image' && !sceneImage && (
                 <div className="relative">
                     <label htmlFor="negativePrompt" className="block text-sm font-medium text-[var(--foreground)] mb-2">Prompt Negativo (opcional)</label>
                     <textarea id="negativePrompt" value={negativePrompt} onChange={e => updateState('negativePrompt', e.target.value)} rows={2}
                         className="w-full p-2 bg-black/5 dark:bg-black/20 text-[var(--foreground)] border border-[var(--border)] rounded-md placeholder:text-slate-600 dark:placeholder:text-slate-400"
                         placeholder="embaçado, texto, marca d'água..." disabled={isLoading || isAnalyzing} />
-                    <button onClick={() => handleTranslate(negativePrompt, 'negativePrompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-black/5 dark:bg-white/5 text-[var(--foreground)] opacity-80 rounded-md hover:bg-black/10 dark:hover:bg-white/10">Traduzir PT-EN</button>
+                    <button onClick={() => handleTranslate(negativePrompt, 'negativePrompt')} className="absolute bottom-2 right-2 px-2 py-1 text-xs bg-[var(--background)]/80 dark:bg-[var(--card)]/80 backdrop-blur-sm text-[var(--foreground)] opacity-90 rounded-md hover:opacity-100 transition-all">Traduzir PT-EN</button>
                 </div>
               )}
 
-              {mode === 'image' && !isProductPlacementMode && (
+              {mode === 'image' && !sceneImage && (
                   <AspectRatioSelector value={aspectRatio} onChange={(r) => updateState('aspectRatio', r)} disabled={isLoading || isAnalyzing} />
               )}
 
               <div className="flex gap-4 pt-2">
-                <button onClick={handleGenerate} disabled={isLoading || isAnalyzing} className="w-full px-4 py-3 bg-[var(--primary)] text-white font-bold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity shadow-lg shadow-[var(--primary)]/20">
+                <button onClick={() => handleGenerate()} disabled={isLoading || isAnalyzing} className="w-full px-4 py-3 bg-[var(--primary)] text-white font-bold rounded-md hover:opacity-90 disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-opacity shadow-lg shadow-[var(--primary)]/20">
                   {isLoading && <SpinnerIcon />}
                   {isLoading ? 'Gerando...' : actionButtonText}
                 </button>
@@ -734,9 +827,16 @@ const App: React.FC = () => {
       </div>
       
       <GalleryModal isOpen={isGalleryOpen} onClose={() => setIsGalleryOpen(false)} onReload={handleReloadCreation} />
-      <PromptEditorModal isOpen={isPromptEditorOpen} onClose={() => setIsPromptEditorOpen(false)} initialPrompt={prompt} onSave={(p) => updateState('prompt', p)} />
-      <PromptHelperModal isOpen={isPromptHelperOpen} onClose={() => setIsPromptHelperOpen(false)} 
-        onAppendToPrompt={(text) => updateState('prompt', prompt ? `${prompt}, ${text}`: text)}
+      <PromptEditorModal 
+        isOpen={isPromptEditorOpen} 
+        onClose={() => setIsPromptEditorOpen(false)} 
+        initialPrompt={mode === 'image' ? prompt : videoPrompt} 
+        onSave={mode === 'image' ? (p) => updateState('prompt', p) : (p) => updateState('videoPrompt', p)} 
+      />
+      <PromptHelperModal 
+        isOpen={isPromptHelperOpen} 
+        onClose={() => setIsPromptHelperOpen(false)} 
+        onAppendToPrompt={appendToCurrentPrompt}
         onAppendToNegativePrompt={(text) => updateState('negativePrompt', negativePrompt ? `${negativePrompt}, ${text}`: text)}
       />
       <MaskEditorModal
