@@ -1,8 +1,8 @@
+
 import React from 'react';
 import { Output, ImageFile } from '../types';
 import { SpinnerIcon } from './icons/SpinnerIcon';
 import { LogoIcon } from './icons/LogoIcon';
-import { GoogleDriveIcon } from './icons/GoogleDriveIcon';
 import { ReplaceIcon } from './icons/ReplaceIcon';
 
 interface MediaDisplayProps {
@@ -61,12 +61,6 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMe
     }
   };
 
-  const handleSaveToDrive = () => {
-    addToast("Funcionalidade para salvar no Google Drive em breve!", 'error');
-  };
-  
-  const driveButtonTitle = "Salvar no Google Drive (Em Breve)";
-
   return (
     <div className="bg-[var(--card)] rounded-2xl w-full h-full flex items-center justify-center p-4 border border-[var(--border)]">
       <div className="w-full h-full flex flex-col items-center justify-center">
@@ -86,14 +80,6 @@ export const MediaDisplay: React.FC<MediaDisplayProps> = ({ isLoading, loadingMe
                     </a>
                     <button onClick={handleUseOutput} className="p-3 bg-black/40 text-white rounded-full hover:bg-[var(--primary)] transition-colors" title="Iterar com esta imagem">
                       <ReplaceIcon />
-                    </button>
-                    <button 
-                      onClick={handleSaveToDrive} 
-                      className="p-3 bg-black/40 text-white rounded-full transition-colors opacity-50 cursor-not-allowed" 
-                      title={driveButtonTitle}
-                      disabled={true}
-                    >
-                      <GoogleDriveIcon />
                     </button>
                   </div>
                 </>

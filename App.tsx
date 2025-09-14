@@ -1,3 +1,4 @@
+
 import React, { useState, useCallback, useRef, useEffect } from 'react';
 import { AppState, Output, Creation, Mode, AspectRatio, ImageFile, ProductSize } from './types';
 import { ImageUploader } from './components/ImageUploader';
@@ -17,7 +18,6 @@ import { VIDEO_LOADING_MESSAGES } from './constants';
 import { MultiImageUploader } from './components/MultiImageUploader';
 import { fileToImageFile, urlToImageFile } from './utils/fileUtils';
 import { InspoIcon } from './components/icons/InspoIcon';
-import { useAuth } from './context/AuthContext';
 import { VariationsIcon } from './components/icons/VariationsIcon';
 
 const initialState: AppState = {
@@ -303,7 +303,6 @@ const App: React.FC = () => {
   const [videoPromptGeneratedFor, setVideoPromptGeneratedFor] = useState<string | null>(null);
   
   const pollingRef = useRef<boolean>(false);
-  const { isReady } = useAuth();
 
   useEffect(() => {
     if (theme === 'dark') {
@@ -775,14 +774,6 @@ const App: React.FC = () => {
     );
   };
   
-  if (!isReady) {
-    return (
-      <div className="w-screen h-screen flex items-center justify-center bg-[var(--background)]">
-        <SpinnerIcon className="w-12 h-12 text-[var(--primary)]" />
-      </div>
-    );
-  }
-
   return (
     <>
       <div className="min-h-screen text-[var(--foreground)] font-sans transition-colors duration-300">
